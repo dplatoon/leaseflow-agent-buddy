@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import logoMark from "@/assets/logo-mark.png";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Log in — LeaseFlow" }] }),
@@ -37,7 +38,7 @@ function LoginPage() {
     <div className="min-h-screen grid place-items-center bg-background px-4">
       <div className="w-full max-w-md">
         <Link to="/" className="flex items-center gap-2 mb-8 justify-center">
-          <div className="h-8 w-8 rounded-lg bg-primary grid place-items-center text-primary-foreground font-bold">L</div>
+          <img src={logoMark} alt="LeaseFlow" width={32} height={32} className="h-8 w-8" loading="lazy" />
           <span className="font-semibold text-lg tracking-tight">LeaseFlow</span>
         </Link>
         <div className="rounded-xl border border-border bg-surface p-6 md:p-8">
