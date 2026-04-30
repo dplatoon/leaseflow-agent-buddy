@@ -2,16 +2,18 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, KanbanSquare, Settings, LogOut, Plus, Menu, X, Search, Webhook } from "lucide-react";
+import { LayoutDashboard, Users, KanbanSquare, Settings, LogOut, Plus, Menu, Search, Webhook, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import NewLeadModal from "./NewLeadModal";
 import logoMark from "@/assets/logo-mark.png";
+import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/pipeline", label: "Pipeline", icon: KanbanSquare },
+  { to: "/reminders", label: "Reminders", icon: Bell },
   { to: "/webhook-events", label: "Webhook Events", icon: Webhook },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
@@ -32,6 +34,32 @@ export default function AppShell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [leadOpen, setLeadOpen] = useState(false);
+  const [dueCount, setDueCount] = useState(0);
+
+  // Poll due-reminder count for the sidebar badge
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const load = async () => {
+      const { count } = await supabase
+        .from("lead_reminders" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .lte("due_at", new Date().toISOString());
+      if (!cancelled) setDueCount(count ?? 0);
+    };
+    void load();
+    const interval = setInterval(load, 60_000);
+    const onChange = () => load();
+    window.addEventListener("leaseflow:reminders-changed", onChange);
+    window.addEventListener("leaseflow:lead-created", onChange);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("leaseflow:reminders-changed", onChange);
+      window.removeEventListener("leaseflow:lead-created", onChange);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
@@ -53,6 +81,7 @@ export default function AppShell({
       <nav className="flex-1 px-3 space-y-1">
         {navItems.map((item) => {
           const active = pathname === item.to || pathname.startsWith(item.to + "/");
+          const isReminders = item.to === "/reminders";
           return (
             <Link
               key={item.to}
@@ -65,7 +94,12 @@ export default function AppShell({
               )}
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {isReminders && dueCount > 0 && (
+                <span className="rounded-full bg-status-lost/20 text-status-lost border border-status-lost/30 px-1.5 py-0.5 text-[10px] font-medium tabular-nums">
+                  {dueCount}
+                </span>
+              )}
             </Link>
           );
         })}
