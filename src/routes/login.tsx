@@ -21,15 +21,22 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && user) navigate({ to: "/dashboard" });
+    if (!authLoading && user) {
+      navigate({ to: user.email_confirmed_at ? "/dashboard" : "/verify-email" });
+    }
   }, [user, authLoading, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) return toast.error(error.message);
+    if (!data.user?.email_confirmed_at) {
+      toast.message("Please verify your email to continue");
+      navigate({ to: "/verify-email" });
+      return;
+    }
     toast.success("Welcome back");
     navigate({ to: "/dashboard" });
   };

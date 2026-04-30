@@ -22,7 +22,9 @@ function SignupPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && user) navigate({ to: "/dashboard" });
+    if (!authLoading && user) {
+      navigate({ to: user.email_confirmed_at ? "/dashboard" : "/verify-email" });
+    }
   }, [user, authLoading, navigate]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -38,8 +40,8 @@ function SignupPage() {
     });
     setLoading(false);
     if (error) return toast.error(error.message);
-    toast.success("Account created");
-    navigate({ to: "/dashboard" });
+    toast.success("Account created — check your email to verify");
+    navigate({ to: "/verify-email" });
   };
 
   return (

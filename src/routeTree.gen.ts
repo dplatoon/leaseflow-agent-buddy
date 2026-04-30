@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebhookLogsRouteImport } from './routes/webhook-logs'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PipelineRouteImport } from './routes/pipeline'
@@ -22,6 +23,11 @@ import { Route as ApiPublicVapiWebhookRouteImport } from './routes/api/public/va
 const WebhookLogsRoute = WebhookLogsRouteImport.update({
   id: '/webhook-logs',
   path: '/webhook-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof PipelineRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/webhook-logs': typeof WebhookLogsRoute
   '/api/public/vapi-webhook': typeof ApiPublicVapiWebhookRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/pipeline': typeof PipelineRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/webhook-logs': typeof WebhookLogsRoute
   '/api/public/vapi-webhook': typeof ApiPublicVapiWebhookRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/pipeline': typeof PipelineRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/webhook-logs': typeof WebhookLogsRoute
   '/api/public/vapi-webhook': typeof ApiPublicVapiWebhookRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/settings'
     | '/signup'
+    | '/verify-email'
     | '/webhook-logs'
     | '/api/public/vapi-webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/settings'
     | '/signup'
+    | '/verify-email'
     | '/webhook-logs'
     | '/api/public/vapi-webhook'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/settings'
     | '/signup'
+    | '/verify-email'
     | '/webhook-logs'
     | '/api/public/vapi-webhook'
   fileRoutesById: FileRoutesById
@@ -143,6 +155,7 @@ export interface RootRouteChildren {
   PipelineRoute: typeof PipelineRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
   WebhookLogsRoute: typeof WebhookLogsRoute
   ApiPublicVapiWebhookRoute: typeof ApiPublicVapiWebhookRoute
 }
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/webhook-logs'
       fullPath: '/webhook-logs'
       preLoaderRoute: typeof WebhookLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -223,9 +243,19 @@ const rootRouteChildren: RootRouteChildren = {
   PipelineRoute: PipelineRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
   WebhookLogsRoute: WebhookLogsRoute,
   ApiPublicVapiWebhookRoute: ApiPublicVapiWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
