@@ -117,7 +117,12 @@ export default function AppShell({
             <Plus className="h-4 w-4" /> New Lead
           </Button>
         </header>
-        <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-4 md:p-6 overflow-x-hidden space-y-4">
+          {gated && !sub.loading && !sub.isSubscribed && !sub.trialExpired && (
+            <TrialBanner daysLeft={sub.trialDaysLeft} />
+          )}
+          {gated && !sub.loading && !sub.hasAccess ? <TrialExpired /> : children}
+        </main>
       </div>
 
       <NewLeadModal open={leadOpen} onOpenChange={setLeadOpen} />
