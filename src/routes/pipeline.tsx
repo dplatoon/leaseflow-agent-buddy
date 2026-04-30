@@ -22,6 +22,8 @@ import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import LeadDetailSheet from "@/components/leaseflow/LeadDetailSheet";
 import { Button } from "@/components/ui/button";
+import { handleStatusChange } from "@/lib/reminders";
+import { useReminderRules } from "@/hooks/useReminderRules";
 
 export const Route = createFileRoute("/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline — LeaseFlow" }] }),
@@ -47,6 +49,7 @@ function isStale(lead: Lead) {
 
 function PipelinePage() {
   const { user } = useAuth();
+  const { rules } = useReminderRules();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -108,6 +111,9 @@ function PipelinePage() {
       toast.error(error.message);
     } else {
       toast.success(`Moved to ${newStatus}`);
+      if (user && rules) {
+        try { await handleStatusChange({ userId: user.id, leadId: id, newStatus, rules }); } catch {}
+      }
     }
   };
 
