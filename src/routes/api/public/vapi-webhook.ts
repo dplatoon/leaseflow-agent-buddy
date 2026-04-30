@@ -86,6 +86,15 @@ function log(
 }
 
 function jsonResponse(status: number, body: Record<string, unknown>, requestId: string) {
+  return jsonResponseWithHeaders(status, body, requestId);
+}
+
+function jsonResponseWithHeaders(
+  status: number,
+  body: Record<string, unknown>,
+  requestId: string,
+  extraHeaders: Record<string, string> = {},
+) {
   return new Response(JSON.stringify({ request_id: requestId, ...body }), {
     status,
     headers: {
@@ -95,6 +104,7 @@ function jsonResponse(status: number, body: Record<string, unknown>, requestId: 
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
       "Cache-Control": "no-store",
+      ...extraHeaders,
     },
   });
 }
