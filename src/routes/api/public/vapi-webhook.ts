@@ -317,44 +317,81 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
         }
         const p = parsed.data;
 
-        const { data: profile, error: pErr } = await supabaseAdmin
-          .from("profiles")
-          .select("id, webhook_secret")
+        // Resolve agent: prefer the per-agent record (multi-agent table),
+        // fall back to the profile's default agent for backward compatibility.
+        const { data: agentRow, error: aErr } = await supabaseAdmin
+          .from("agents")
+          .select("user_id, webhook_secret, is_active")
           .eq("agent_id", p.agent_id)
           .maybeSingle();
-        if (pErr) {
+        if (aErr) {
           return finish(
             500,
             { error: "Lookup failed" },
             "error",
             "profile_lookup_failed",
-            { agent_id: p.agent_id, db_error: pErr.message, code: pErr.code },
-          );
-        }
-        if (!profile) {
-          return finish(
-            404,
-            { error: "Unknown agent_id" },
-            "warn",
-            "unknown_agent",
-            { agent_id: p.agent_id },
+            { agent_id: p.agent_id, db_error: aErr.message, code: aErr.code },
           );
         }
 
-        // Per-user secret takes precedence; the global secret remains a
-        // workspace-wide fallback so existing integrations keep working.
-        const userSecret = (profile as { webhook_secret?: string | null }).webhook_secret;
-        const secretMatchesUser = userSecret ? safeEqual(provided, userSecret) : false;
+        let resolvedUserId: string | null = null;
+        let resolvedSecret: string | null = null;
+        let agentActive = true;
+
+        if (agentRow) {
+          resolvedUserId = (agentRow as { user_id: string }).user_id;
+          resolvedSecret = (agentRow as { webhook_secret: string | null }).webhook_secret ?? null;
+          agentActive = (agentRow as { is_active: boolean }).is_active ?? true;
+        } else {
+          const { data: profile, error: pErr } = await supabaseAdmin
+            .from("profiles")
+            .select("id, webhook_secret")
+            .eq("agent_id", p.agent_id)
+            .maybeSingle();
+          if (pErr) {
+            return finish(
+              500,
+              { error: "Lookup failed" },
+              "error",
+              "profile_lookup_failed",
+              { agent_id: p.agent_id, db_error: pErr.message, code: pErr.code },
+            );
+          }
+          if (!profile) {
+            return finish(
+              404,
+              { error: "Unknown agent_id" },
+              "warn",
+              "unknown_agent",
+              { agent_id: p.agent_id },
+            );
+          }
+          resolvedUserId = profile.id;
+          resolvedSecret = (profile as { webhook_secret?: string | null }).webhook_secret ?? null;
+        }
+
+        if (!agentActive) {
+          return finish(403, { error: "Agent disabled" }, "warn", "unauthorized", {
+            agent_id: p.agent_id,
+            reason: "agent_disabled",
+            user_id: resolvedUserId,
+          });
+        }
+
+        // Per-agent (or profile fallback) secret takes precedence;
+        // the global VAPI_WEBHOOK_SECRET remains a workspace-wide fallback.
+        const secretMatchesUser = resolvedSecret ? safeEqual(provided, resolvedSecret) : false;
         const secretMatchesGlobal = expected ? safeEqual(provided, expected) : false;
         if (!secretMatchesUser && !secretMatchesGlobal) {
           return finish(401, { error: "Unauthorized" }, "warn", "unauthorized", {
             agent_id: p.agent_id,
+            user_id: resolvedUserId,
             reason: "secret_mismatch_for_agent",
           });
         }
 
         const { data: inserted, error: iErr } = await supabaseAdmin.from("leads").insert({
-          user_id: profile.id,
+          user_id: resolvedUserId!,
           full_name: p.extracted_name || "Unknown caller",
           phone: p.caller_phone ?? null,
           location: p.extracted_location ?? null,
@@ -374,7 +411,7 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
             "insert_failed",
             {
               agent_id: p.agent_id,
-              user_id: profile.id,
+              user_id: resolvedUserId,
               db_error: iErr.message,
               code: iErr.code,
             },
@@ -388,7 +425,7 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
           "success",
           {
             agent_id: p.agent_id,
-            user_id: profile.id,
+            user_id: resolvedUserId,
             lead_id: inserted?.id,
             has_phone: Boolean(p.caller_phone),
             has_name: Boolean(p.extracted_name),
