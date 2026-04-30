@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, RefreshCw, Eye, EyeOff } from "lucide-react";
 import ConnectedAccounts from "@/components/leaseflow/ConnectedAccounts";
+import { getWebhookSecret, regenerateWebhookSecret } from "@/server/webhook-secret.functions";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — LeaseFlow" }] }),
@@ -27,6 +28,11 @@ function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [copiedAgent, setCopiedAgent] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedSecret, setCopiedSecret] = useState(false);
+  const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
+  const [secretLoading, setSecretLoading] = useState(true);
+  const [revealSecret, setRevealSecret] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -38,6 +44,41 @@ function SettingsPage() {
       }
     })();
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setSecretLoading(true);
+    getWebhookSecret()
+      .then((res) => setWebhookSecret(res.secret))
+      .catch((e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to load secret"))
+      .finally(() => setSecretLoading(false));
+  }, [user]);
+
+  const regenerate = async () => {
+    if (!confirm("Regenerate your webhook secret? Your current secret will stop working immediately and you'll need to update Vapi.")) return;
+    setRegenerating(true);
+    try {
+      const res = await regenerateWebhookSecret();
+      setWebhookSecret(res.secret);
+      setRevealSecret(true);
+      toast.success("New webhook secret generated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to regenerate secret");
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const copySecret = async () => {
+    if (!webhookSecret) return;
+    await navigator.clipboard.writeText(webhookSecret);
+    setCopiedSecret(true);
+    setTimeout(() => setCopiedSecret(false), 1500);
+  };
+
+  const maskedSecret = webhookSecret
+    ? `${webhookSecret.slice(0, 6)}${"•".repeat(28)}${webhookSecret.slice(-4)}`
+    : "";
 
   const saveName = async () => {
     if (!user) return;
@@ -139,7 +180,52 @@ function SettingsPage() {
                 {copiedUrl ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">POST JSON. Add header <code className="font-mono">x-vapi-secret</code> matching your <code className="font-mono">VAPI_WEBHOOK_SECRET</code>.</p>
+            <p className="text-xs text-muted-foreground">POST JSON. Add header <code className="font-mono">x-vapi-secret</code> matching the secret below.</p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Webhook secret</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={regenerate}
+                disabled={regenerating || secretLoading}
+                className="gap-2 h-8"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+                {regenerating ? "Regenerating…" : "Regenerate"}
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={secretLoading ? "Loading…" : revealSecret ? webhookSecret ?? "" : maskedSecret}
+                className="font-mono text-xs"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setRevealSecret((v) => !v)}
+                disabled={!webhookSecret}
+                title={revealSecret ? "Hide" : "Reveal"}
+              >
+                {revealSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={copySecret}
+                disabled={!webhookSecret}
+                title="Copy"
+              >
+                {copiedSecret ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Treat this like a password. Regenerating it immediately invalidates the old one — update Vapi right after.
+            </p>
           </div>
         </section>
 
