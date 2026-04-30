@@ -142,7 +142,7 @@ async function recordWebhookLog(entry: {
       duration_ms: entry.duration_ms,
       error_message: entry.error_message ?? null,
       payload_summary: entry.payload_summary ?? null,
-    });
+    } as never);
     if (error) {
       console.error(
         JSON.stringify({
