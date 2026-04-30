@@ -9,10 +9,11 @@ import { BUDGETS, PROPERTY_TYPES, SOURCES, STATUSES, URGENCIES, statusClass, typ
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
-import { Phone, Trash2, Clock, Radio, ExternalLink } from "lucide-react";
+import { Phone, Trash2, Clock, Radio, ExternalLink, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import LeadRemindersSection from "@/components/leaseflow/LeadRemindersSection";
 import LeadCallsSection from "@/components/leaseflow/LeadCallsSection";
+import SendMessageDialog from "@/components/leaseflow/SendMessageDialog";
 import { handleStatusChange } from "@/lib/reminders";
 import { useReminderRules } from "@/hooks/useReminderRules";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +32,7 @@ export default function LeadDetailSheet({
   const [draft, setDraft] = useState<Lead | null>(lead);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
   const { user } = useAuth();
   const { rules } = useReminderRules();
 
@@ -111,15 +113,27 @@ export default function LeadDetailSheet({
 
         <div className="mt-6 space-y-5">
           {draft.phone && (
-            <a
-              href={`tel:${draft.phone}`}
-              className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Phone className="h-4 w-4" /> Call {draft.phone}
-              </span>
-              <ExternalLink className="h-3.5 w-3.5 opacity-60" />
-            </a>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <a
+                href={`tel:${draft.phone}`}
+                className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/15 transition-colors"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Phone className="h-4 w-4" /> Call {draft.phone}
+                </span>
+                <ExternalLink className="h-3.5 w-3.5 opacity-60" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setSendOpen(true)}
+                className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium hover:bg-accent transition-colors"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" /> Send message
+                </span>
+                <ExternalLink className="h-3.5 w-3.5 opacity-60" />
+              </button>
+            </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -226,6 +240,12 @@ export default function LeadDetailSheet({
           </div>
         </div>
       </SheetContent>
+      <SendMessageDialog
+        leads={draft ? [draft] : []}
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        agentName={user?.user_metadata?.full_name ?? null}
+      />
     </Sheet>
   );
 }

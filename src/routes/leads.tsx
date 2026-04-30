@@ -22,8 +22,9 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageSquare, Trash2, X } from "lucide-react";
 import LeadDetailSheet from "@/components/leaseflow/LeadDetailSheet";
+import SendMessageDialog from "@/components/leaseflow/SendMessageDialog";
 import { handleStatusChange } from "@/lib/reminders";
 import { useReminderRules } from "@/hooks/useReminderRules";
 
@@ -59,6 +60,7 @@ function LeadsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [bulkSendOpen, setBulkSendOpen] = useState(false);
 
   // Reset selection when the visible page changes
   useEffect(() => { setSelected(new Set()); }, [page, pageSize, statusFilter, search]);
@@ -210,6 +212,15 @@ function LeadsPage() {
               {selected.size} selected
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setBulkSendOpen(true)}
+                className="gap-2"
+              >
+                <MessageSquare className="h-4 w-4" /> Send message
+              </Button>
               <Select onValueChange={(v) => bulkUpdateStatus(v as Status)}>
                 <SelectTrigger className="w-44 bg-surface" disabled={bulkBusy}>
                   <SelectValue placeholder="Set status…" />
@@ -356,6 +367,13 @@ function LeadsPage() {
         open={sheetOpen}
         onOpenChange={(v) => { setSheetOpen(v); if (!v) setOpenLeadId(null); }}
         onChanged={load}
+      />
+
+      <SendMessageDialog
+        leads={leads.filter((l) => selected.has(l.id))}
+        open={bulkSendOpen}
+        onOpenChange={setBulkSendOpen}
+        agentName={user?.user_metadata?.full_name ?? null}
       />
     </AppShell>
   );
