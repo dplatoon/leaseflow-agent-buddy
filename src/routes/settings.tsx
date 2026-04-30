@@ -111,6 +111,8 @@ function SettingsPage() {
           )}
         </section>
 
+        <ConnectedAccounts />
+
         {/* Vapi */}
         <section className="rounded-xl border border-border bg-surface p-5 space-y-4">
           <div>
