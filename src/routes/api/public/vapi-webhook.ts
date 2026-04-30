@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { z } from "zod";
-import { timingSafeEqual, randomUUID } from "crypto";
+import { createHash, timingSafeEqual, randomUUID } from "crypto";
 
 const MAX_BODY_BYTES = 16 * 1024; // 16KB hard cap on payload size
 
@@ -33,12 +33,22 @@ const PayloadSchema = z
   })
   .strict();
 
+// Constant-time, constant-length comparison.
+// Both sides are SHA-256 hashed first so the comparison length is always 32
+// bytes regardless of the underlying secret length. This avoids leaking
+// whether the provided secret has the "right" length and prevents the early
+// length-check fast path that could leak timing information.
 function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a, "utf8");
-  const bb = Buffer.from(b, "utf8");
-  if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
+  const ah = createHash("sha256").update(a, "utf8").digest();
+  const bh = createHash("sha256").update(b, "utf8").digest();
+  return timingSafeEqual(ah, bh);
 }
+
+// A constant placeholder secret used when no agent matches the supplied
+// agent_id. Comparing against this keeps the unauthenticated code path's
+// timing profile aligned with the authenticated one so attackers can't
+// distinguish "unknown agent" from "wrong secret" by response timing.
+const DUMMY_SECRET = `whsec_${"0".repeat(64)}`;
 
 type LogStage =
   | "received"
@@ -242,6 +252,14 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
             secret_present: false,
           });
         }
+        // Generic 401 we return for any auth failure (unknown agent, wrong
+        // secret, agent disabled). Keeping the body identical prevents an
+        // attacker from enumerating valid agent_ids by status/body diff.
+        const genericUnauthorized = (
+          stage: LogStage,
+          extra: Record<string, unknown>,
+        ) =>
+          finish(401, { error: "Unauthorized" }, "warn", stage, extra);
 
         // Enforce JSON content-type
         const contentType = request.headers.get("content-type") ?? "";
@@ -337,8 +355,10 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
         let resolvedUserId: string | null = null;
         let resolvedSecret: string | null = null;
         let agentActive = true;
+        let agentFound = false;
 
         if (agentRow) {
+          agentFound = true;
           resolvedUserId = (agentRow as { user_id: string }).user_id;
           resolvedSecret = (agentRow as { webhook_secret: string | null }).webhook_secret ?? null;
           agentActive = (agentRow as { is_active: boolean }).is_active ?? true;
@@ -357,33 +377,41 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
               { agent_id: p.agent_id, db_error: pErr.message, code: pErr.code },
             );
           }
-          if (!profile) {
-            return finish(
-              404,
-              { error: "Unknown agent_id" },
-              "warn",
-              "unknown_agent",
-              { agent_id: p.agent_id },
-            );
+          if (profile) {
+            agentFound = true;
+            resolvedUserId = profile.id;
+            resolvedSecret =
+              (profile as { webhook_secret?: string | null }).webhook_secret ?? null;
           }
-          resolvedUserId = profile.id;
-          resolvedSecret = (profile as { webhook_secret?: string | null }).webhook_secret ?? null;
         }
 
-        if (!agentActive) {
-          return finish(403, { error: "Agent disabled" }, "warn", "unauthorized", {
+        // Always run the secret comparison — even when the agent doesn't
+        // exist or is disabled — against either the real secret or a dummy
+        // of equal hashed length. This keeps the response shape identical
+        // (401 "Unauthorized") for every auth failure mode and avoids
+        // exposing valid agent_ids via status code or response timing.
+        const candidateSecret = resolvedSecret ?? DUMMY_SECRET;
+        const secretMatchesUser =
+          agentFound && agentActive && safeEqual(provided, candidateSecret);
+        const secretMatchesGlobal = expected
+          ? safeEqual(provided, expected)
+          : safeEqual(provided, DUMMY_SECRET) && false;
+
+        if (!agentFound) {
+          return genericUnauthorized("unauthorized", {
             agent_id: p.agent_id,
-            reason: "agent_disabled",
-            user_id: resolvedUserId,
+            reason: "unknown_agent",
           });
         }
-
-        // Per-agent (or profile fallback) secret takes precedence;
-        // the global VAPI_WEBHOOK_SECRET remains a workspace-wide fallback.
-        const secretMatchesUser = resolvedSecret ? safeEqual(provided, resolvedSecret) : false;
-        const secretMatchesGlobal = expected ? safeEqual(provided, expected) : false;
+        if (!agentActive) {
+          return genericUnauthorized("unauthorized", {
+            agent_id: p.agent_id,
+            user_id: resolvedUserId,
+            reason: "agent_disabled",
+          });
+        }
         if (!secretMatchesUser && !secretMatchesGlobal) {
-          return finish(401, { error: "Unauthorized" }, "warn", "unauthorized", {
+          return genericUnauthorized("unauthorized", {
             agent_id: p.agent_id,
             user_id: resolvedUserId,
             reason: "secret_mismatch_for_agent",
