@@ -14,7 +14,89 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      leads: {
+        Row: {
+          budget: string | null
+          created_at: string
+          full_name: string
+          id: string
+          location: string | null
+          notes: string | null
+          phone: string | null
+          property_type: string | null
+          source: string
+          status: string
+          urgency: string | null
+          user_id: string
+        }
+        Insert: {
+          budget?: string | null
+          created_at?: string
+          full_name: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          phone?: string | null
+          property_type?: string | null
+          source?: string
+          status?: string
+          urgency?: string | null
+          user_id: string
+        }
+        Update: {
+          budget?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          phone?: string | null
+          property_type?: string | null
+          source?: string
+          status?: string
+          urgency?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          agent_id: string
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          is_subscribed: boolean
+          stripe_customer_id: string | null
+        }
+        Insert: {
+          agent_id?: string
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          is_subscribed?: boolean
+          stripe_customer_id?: string | null
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          is_subscribed?: boolean
+          stripe_customer_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
