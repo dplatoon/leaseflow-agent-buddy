@@ -77,7 +77,7 @@ export const sendWebhookTest = createServerFn({ method: "POST" })
         insertOk: false,
         leadId: null as string | null,
         message: e instanceof Error ? e.message : String(e),
-        body: null,
+        body: "",
       };
     }
 
@@ -93,7 +93,9 @@ export const sendWebhookTest = createServerFn({ method: "POST" })
       authOk,
       insertOk,
       leadId,
-      message: (bodyJson?.error as string | undefined) ?? (insertOk ? "Test lead inserted" : bodyText.slice(0, 240)),
-      body: bodyJson ?? bodyText.slice(0, 500),
+      message:
+        (bodyJson?.error as string | undefined) ??
+        (insertOk ? "Test lead inserted" : bodyText.slice(0, 240)),
+      body: bodyText.slice(0, 1000),
     };
   });
