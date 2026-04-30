@@ -8,10 +8,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { STATUSES, statusClass, type Lead, type Status } from "@/lib/leaseflow";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -39,6 +50,12 @@ function LeadsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(search);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Reset selection when the visible page changes
+  useEffect(() => { setSelected(new Set()); }, [page, pageSize, statusFilter, search]);
 
   // Keep local input in sync with URL (e.g. back/forward navigation)
   useEffect(() => { setSearchInput(search); }, [search]);
@@ -100,6 +117,44 @@ function LeadsPage() {
     }
   };
 
+  const selectedIds = Array.from(selected);
+  const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
+  const someSelected = selected.size > 0 && !allSelected;
+
+  const toggleAll = (checked: boolean) => {
+    setSelected(checked ? new Set(leads.map((l) => l.id)) : new Set());
+  };
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+
+  const bulkUpdateStatus = async (status: Status) => {
+    if (selectedIds.length === 0) return;
+    setBulkBusy(true);
+    const { error } = await supabase.from("leads").update({ status }).in("id", selectedIds);
+    setBulkBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success(`Updated ${selectedIds.length} lead${selectedIds.length === 1 ? "" : "s"} to ${status}`);
+    setSelected(new Set());
+    load();
+  };
+
+  const bulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setBulkBusy(true);
+    const { error } = await supabase.from("leads").delete().in("id", selectedIds);
+    setBulkBusy(false);
+    setConfirmDelete(false);
+    if (error) return toast.error(error.message);
+    toast.success(`Deleted ${selectedIds.length} lead${selectedIds.length === 1 ? "" : "s"}`);
+    setSelected(new Set());
+    load();
+  };
+
   return (
     <AppShell gated showSearch searchValue={searchInput} onSearchChange={setSearchInput}>
       <div className="space-y-5">
@@ -133,11 +188,54 @@ function LeadsPage() {
           </div>
         </div>
 
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-accent/30 px-4 py-3 text-sm">
+            <div className="font-medium">
+              {selected.size} selected
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select onValueChange={(v) => bulkUpdateStatus(v as Status)}>
+                <SelectTrigger className="w-44 bg-surface" disabled={bulkBusy}>
+                  <SelectValue placeholder="Set status…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setConfirmDelete(true)}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" /> Delete
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setSelected(new Set())}
+                className="gap-2"
+              >
+                <X className="h-4 w-4" /> Clear
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-xl border border-border bg-surface overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-background/40 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
+                  <th className="px-4 py-3 w-10">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      onCheckedChange={(v) => toggleAll(v === true)}
+                      aria-label="Select all on page"
+                    />
+                  </th>
                   <th className="text-left px-4 py-3 font-medium">Name</th>
                   <th className="text-left px-4 py-3 font-medium">Phone</th>
                   <th className="text-left px-4 py-3 font-medium">Location</th>
@@ -150,11 +248,18 @@ function LeadsPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
                 ) : leads.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No leads found.</td></tr>
+                  <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No leads found.</td></tr>
                 ) : leads.map((l) => (
-                  <tr key={l.id} className="hover:bg-accent/30">
+                  <tr key={l.id} className={cn("hover:bg-accent/30", selected.has(l.id) && "bg-accent/30")}>
+                    <td className="px-4 py-3">
+                      <Checkbox
+                        checked={selected.has(l.id)}
+                        onCheckedChange={(v) => toggleOne(l.id, v === true)}
+                        aria-label={`Select ${l.full_name}`}
+                      />
+                    </td>
                     <td className="px-4 py-3 font-medium">{l.full_name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.phone ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.location ?? "—"}</td>
@@ -203,6 +308,27 @@ function LeadsPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selected.size} lead{selected.size === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the selected leads. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={bulkBusy}
+              onClick={(e) => { e.preventDefault(); bulkDelete(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
