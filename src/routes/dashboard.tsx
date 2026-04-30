@@ -235,17 +235,10 @@ function DashboardPage() {
                     <AlertTriangle className="h-3 w-3" /> {msgFailedWeek} failed
                   </span>
                 )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs gap-1.5"
-                  onClick={exportFailuresCsv}
-                  disabled={exporting}
-                  title="Download all failed message attempts as CSV (all-time)"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  {exporting ? "Exporting…" : "Export failures CSV"}
-                </Button>
+                <ExportFailuresButton
+                  label="Export failures CSV"
+                  title="Download failed message attempts as CSV — pick a date range"
+                />
               </div>
             </div>
 
