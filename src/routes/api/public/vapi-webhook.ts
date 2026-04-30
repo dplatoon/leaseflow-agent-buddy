@@ -53,6 +53,7 @@ const DUMMY_SECRET = `whsec_${"0".repeat(64)}`;
 type LogStage =
   | "received"
   | "unauthorized"
+  | "rate_limited"
   | "misconfigured"
   | "unsupported_media_type"
   | "payload_too_large"
@@ -111,6 +112,8 @@ function statusForStage(stage: LogStage): WebhookStatus {
       return "inserted";
     case "unauthorized":
       return "unauthorized";
+    case "rate_limited":
+      return "unauthorized";
     case "invalid_body":
     case "invalid_json":
     case "invalid_payload":
@@ -124,6 +127,86 @@ function statusForStage(stage: LogStage): WebhookStatus {
       return "failed";
     default:
       return "authorized";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Per-IP rate limiting (sliding window).
+//
+// NOTE: This backend has no shared rate-limit primitives (Redis / edge KV).
+// The implementation below is an ad-hoc Postgres sliding window. It is good
+// enough to deflect basic abuse and brute-force attempts on the public
+// webhook, but it is NOT a precise traffic shaper:
+//   - Requests can race within the window before the count is observed.
+//   - Every request hits the DB twice (count + insert) which adds latency.
+//   - "127.0.0.1" / unknown IPs are bucketed together.
+// Replace with a proper rate-limiter (Cloudflare Rate Limiting, Upstash, etc.)
+// when that infra is available.
+// ---------------------------------------------------------------------------
+const RL_WINDOW_MS = 60 * 1000; // 1 minute
+const RL_MAX_PER_WINDOW = 60; // 60 req/min per IP — generous for a webhook
+const RL_PRUNE_PROBABILITY = 0.02; // ~2% of requests trigger a cleanup
+
+async function checkIpRateLimit(ip: string | null): Promise<{
+  allowed: boolean;
+  used: number;
+  limit: number;
+  retryAfterMs: number;
+}> {
+  const bucket = ip || "unknown";
+  const since = new Date(Date.now() - RL_WINDOW_MS).toISOString();
+
+  const { count } = await supabaseAdmin
+    .from("webhook_ip_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("ip", bucket)
+    .gte("created_at", since);
+
+  const used = count ?? 0;
+  if (used >= RL_MAX_PER_WINDOW) {
+    const { data: oldest } = await supabaseAdmin
+      .from("webhook_ip_attempts")
+      .select("created_at")
+      .eq("ip", bucket)
+      .gte("created_at", since)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const retryAtMs = oldest
+      ? new Date(oldest.created_at).getTime() + RL_WINDOW_MS - Date.now()
+      : RL_WINDOW_MS;
+    return {
+      allowed: false,
+      used,
+      limit: RL_MAX_PER_WINDOW,
+      retryAfterMs: Math.max(1000, retryAtMs),
+    };
+  }
+  return {
+    allowed: true,
+    used,
+    limit: RL_MAX_PER_WINDOW,
+    retryAfterMs: 0,
+  };
+}
+
+async function recordIpAttempt(
+  ip: string | null,
+  agentId: string | null,
+  outcome: WebhookStatus | "rate_limited",
+) {
+  try {
+    await supabaseAdmin.from("webhook_ip_attempts").insert({
+      ip: ip || "unknown",
+      agent_id: agentId,
+      outcome,
+    });
+    if (Math.random() < RL_PRUNE_PROBABILITY) {
+      // Opportunistic cleanup; ignore errors.
+      void supabaseAdmin.rpc("prune_webhook_ip_attempts").then(() => undefined);
+    }
+  } catch {
+    // Never block the webhook on rate-limit bookkeeping failures.
   }
 }
 
