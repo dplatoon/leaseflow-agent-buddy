@@ -8,6 +8,8 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Users, Sparkles, Calendar, CheckCircle2, Phone, PhoneCall } from "lucide-react";
 import { CALL_OUTCOMES, OUTCOME_LABELS, OUTCOME_TONE, type CallLog, type CallOutcome } from "@/lib/calls";
+import CallTrendSparkline from "@/components/leaseflow/CallTrendSparkline";
+import { format } from "date-fns";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — LeaseFlow" }] }),
@@ -68,6 +70,35 @@ function DashboardPage() {
     ["interested", "scheduled_viewing", "callback_requested", "not_qualified"].includes(c.outcome)
   ).length;
 
+  // Build last-7-days buckets (oldest → newest, including today).
+  const dayBuckets = (() => {
+    const days: { date: Date; key: string; label: string; total: number; perOutcome: Record<CallOutcome, number> }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      days.push({
+        date: d,
+        key,
+        label: format(d, "EEE M/d"),
+        total: 0,
+        perOutcome: CALL_OUTCOMES.reduce((acc, o) => ({ ...acc, [o]: 0 }), {} as Record<CallOutcome, number>),
+      });
+    }
+    const byKey = new Map(days.map((d) => [d.key, d]));
+    for (const c of callsWeek) {
+      const k = new Date(c.created_at).toISOString().slice(0, 10);
+      const day = byKey.get(k);
+      if (!day) continue;
+      day.total += 1;
+      day.perOutcome[c.outcome] += 1;
+    }
+    return days;
+  })();
+  const totalSeries = dayBuckets.map((d) => d.total);
+  const dayLabels = dayBuckets.map((d) => d.label);
+  const peakDay = dayBuckets.reduce((m, d) => (d.total > m.total ? d : m), dayBuckets[0]);
+
   const kpis = [
     { label: "Total Leads", value: total, icon: Users, tint: "text-primary" },
     { label: "New Today", value: newToday, icon: Sparkles, tint: "text-status-new" },
@@ -98,6 +129,71 @@ function DashboardPage() {
               )}
             </div>
           ))}
+        </div>
+
+        {/* 7-day trend */}
+        <div className="rounded-xl border border-border bg-surface">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-medium">Calls trend — last 7 days</h2>
+              <p className="text-xs text-muted-foreground">Daily totals plus per-outcome breakdown.</p>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-xs text-muted-foreground">Peak day</div>
+              <div className="text-sm font-medium tabular-nums">{peakDay.total} <span className="text-muted-foreground font-normal">· {peakDay.label}</span></div>
+            </div>
+          </div>
+          {totalWeekCalls === 0 ? (
+            <div className="p-6 text-sm text-muted-foreground">
+              No calls in the last 7 days yet.
+            </div>
+          ) : (
+            <div className="p-5 space-y-4">
+              {/* Total trend */}
+              <div className="flex items-center gap-4">
+                <div className="min-w-[140px]">
+                  <div className="text-xs text-muted-foreground">All calls</div>
+                  <div className="text-2xl font-semibold tabular-nums">{totalWeekCalls}</div>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <CallTrendSparkline values={totalSeries} labels={dayLabels} width={320} height={48} />
+                </div>
+              </div>
+
+              {/* Per-day axis labels */}
+              <div className="grid grid-cols-7 gap-1 text-[10px] text-muted-foreground tabular-nums">
+                {dayBuckets.map((d) => (
+                  <div key={d.key} className="text-center">
+                    <div>{format(d.date, "EEE")}</div>
+                    <div className="text-foreground font-medium">{d.total}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Per-outcome sparklines */}
+              <div className="border-t border-border pt-4 space-y-2">
+                {CALL_OUTCOMES
+                  .map((o) => ({
+                    outcome: o,
+                    series: dayBuckets.map((d) => d.perOutcome[o]),
+                    total: outcomeCounts[o],
+                  }))
+                  .filter((row) => row.total > 0)
+                  .sort((a, b) => b.total - a.total)
+                  .map(({ outcome, series, total }) => (
+                    <div key={outcome} className="flex items-center gap-3">
+                      <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium shrink-0 min-w-[140px] text-center", OUTCOME_TONE[outcome])}>
+                        {OUTCOME_LABELS[outcome]}
+                      </span>
+                      <div className="flex-1 overflow-hidden">
+                        <CallTrendSparkline values={series} labels={dayLabels} width={260} height={28} />
+                      </div>
+                      <span className="text-xs tabular-nums w-10 text-right text-muted-foreground">{total}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Outcome breakdown */}
