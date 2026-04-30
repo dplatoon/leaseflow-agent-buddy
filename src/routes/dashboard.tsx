@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
 import { parseFailureReason } from "@/lib/templates";
 import ExportFailuresButton from "@/components/leaseflow/ExportFailuresButton";
-import { toast } from "sonner";
 
 const TREND_FILTER_KEY = "leaseflow:dashboard:trend-outcome-filter";
 
