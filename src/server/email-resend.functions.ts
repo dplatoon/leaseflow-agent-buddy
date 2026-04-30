@@ -8,7 +8,7 @@ const MAX_PER_WINDOW = 3;
 export const resendVerificationEmail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { userId } = context;
+    const { userId, supabase } = context;
 
     // Look up user (admin) to get email + confirmation status.
     const { data: userRes, error: userErr } =
@@ -59,17 +59,15 @@ export const resendVerificationEmail = createServerFn({ method: "POST" })
       .insert({ user_id: userId, email: user.email });
     if (insErr) throw new Error(insErr.message);
 
-    // Generate a fresh signup confirmation link (also triggers Supabase to send email).
-    const { error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+    // Trigger Supabase to send a fresh signup confirmation email.
+    const { error: sendErr } = await supabase.auth.resend({
       type: "signup",
       email: user.email,
       options: {
-        redirectTo: `${process.env.SUPABASE_URL ? "" : ""}${
-          process.env.SITE_URL ?? ""
-        }/dashboard`,
+        emailRedirectTo: `${process.env.SITE_URL ?? ""}/dashboard`,
       },
     });
-    if (linkErr) throw new Error(linkErr.message);
+    if (sendErr) throw new Error(sendErr.message);
 
     return {
       ok: true,
