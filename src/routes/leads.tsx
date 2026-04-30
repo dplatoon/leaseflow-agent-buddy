@@ -1,51 +1,92 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/leaseflow/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { STATUSES, statusClass, type Lead, type Status } from "@/lib/leaseflow";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+const PAGE_SIZES = [10, 25, 50, 100] as const;
+
+const leadsSearchSchema = z.object({
+  page: fallback(z.number().int().min(1), 1).default(1),
+  pageSize: fallback(z.number().int().refine((n) => (PAGE_SIZES as readonly number[]).includes(n)), 25).default(25),
+  status: fallback(z.string(), "all").default("all"),
+  q: fallback(z.string(), "").default(""),
+});
+
+type LeadsSearch = z.infer<typeof leadsSearchSchema>;
 
 export const Route = createFileRoute("/leads")({
   head: () => ({ meta: [{ title: "Leads — LeaseFlow" }] }),
+  validateSearch: zodValidator(leadsSearchSchema),
   component: LeadsPage,
 });
 
 function LeadsPage() {
   const { user } = useAuth();
+  const navigate = Route.useNavigate();
+  const { page, pageSize, status: statusFilter, q: search } = Route.useSearch();
+
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchInput, setSearchInput] = useState(search);
+
+  // Keep local input in sync with URL (e.g. back/forward navigation)
+  useEffect(() => { setSearchInput(search); }, [search]);
+
+  // Debounce search input → URL
+  useEffect(() => {
+    if (searchInput === search) return;
+    const t = setTimeout(() => {
+      navigate({ search: (prev: LeadsSearch) => ({ ...prev, q: searchInput, page: 1 }) });
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
 
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase.from("leads").select("*").order("created_at", { ascending: false });
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    let query = supabase
+      .from("leads")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (statusFilter !== "all") query = query.eq("status", statusFilter);
+    const q = search.trim();
+    if (q) query = query.or(`full_name.ilike.%${q}%,phone.ilike.%${q}%`);
+
+    const { data, count, error } = await query;
+    if (error) toast.error(error.message);
     setLeads((data ?? []) as Lead[]);
+    setTotal(count ?? 0);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [user, page, pageSize, statusFilter, search]);
 
   useEffect(() => {
     const onCreated = () => load();
     window.addEventListener("leaseflow:lead-created", onCreated);
     return () => window.removeEventListener("leaseflow:lead-created", onCreated);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, page, pageSize, statusFilter, search]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return leads.filter((l) => {
-      if (statusFilter !== "all" && l.status !== statusFilter) return false;
-      if (!q) return true;
-      return l.full_name.toLowerCase().includes(q) || (l.phone ?? "").toLowerCase().includes(q);
-    });
-  }, [leads, search, statusFilter]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeTo = Math.min(page * pageSize, total);
 
   const updateStatus = async (id: string, status: Status) => {
     const prev = leads;
@@ -60,19 +101,33 @@ function LeadsPage() {
   };
 
   return (
-    <AppShell gated showSearch searchValue={search} onSearchChange={setSearch}>
+    <AppShell gated showSearch searchValue={searchInput} onSearchChange={setSearchInput}>
       <div className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
-            <p className="text-sm text-muted-foreground">{filtered.length} of {leads.length} leads</p>
+            <p className="text-sm text-muted-foreground">
+              {total === 0 ? "No leads" : `Showing ${rangeFrom}–${rangeTo} of ${total}`}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => navigate({ search: (prev: LeadsSearch) => ({ ...prev, status: v, page: 1 }) })}
+            >
               <SelectTrigger className="w-40 bg-surface"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => navigate({ search: (prev: LeadsSearch) => ({ ...prev, pageSize: Number(v), page: 1 }) })}
+            >
+              <SelectTrigger className="w-28 bg-surface"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZES.map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -96,9 +151,9 @@ function LeadsPage() {
               <tbody className="divide-y divide-border">
                 {loading ? (
                   <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
-                ) : filtered.length === 0 ? (
+                ) : leads.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No leads found.</td></tr>
-                ) : filtered.map((l) => (
+                ) : leads.map((l) => (
                   <tr key={l.id} className="hover:bg-accent/30">
                     <td className="px-4 py-3 font-medium">{l.full_name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.phone ?? "—"}</td>
@@ -121,6 +176,30 @@ function LeadsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm">
+            <div className="text-muted-foreground">
+              Page {page} of {totalPages}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || loading}
+                onClick={() => navigate({ search: (prev: LeadsSearch) => ({ ...prev, page: Math.max(1, page - 1) }) })}
+              >
+                <ChevronLeft className="h-4 w-4" /> Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages || loading}
+                onClick={() => navigate({ search: (prev: LeadsSearch) => ({ ...prev, page: page + 1 }) })}
+              >
+                Next <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
