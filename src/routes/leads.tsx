@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
+import LeadDetailSheet from "@/components/leaseflow/LeadDetailSheet";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -53,6 +54,8 @@ function LeadsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Reset selection when the visible page changes
   useEffect(() => { setSelected(new Set()); }, [page, pageSize, statusFilter, search]);
@@ -252,12 +255,17 @@ function LeadsPage() {
                 ) : leads.length === 0 ? (
                   <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No leads found.</td></tr>
                 ) : leads.map((l) => (
-                  <tr key={l.id} className={cn("hover:bg-accent/30", selected.has(l.id) && "bg-accent/30")}>
+                  <tr
+                    key={l.id}
+                    onClick={() => { setOpenLeadId(l.id); setSheetOpen(true); }}
+                    className={cn("hover:bg-accent/30 cursor-pointer", selected.has(l.id) && "bg-accent/30")}
+                  >
                     <td className="px-4 py-3">
                       <Checkbox
                         checked={selected.has(l.id)}
                         onCheckedChange={(v) => toggleOne(l.id, v === true)}
                         aria-label={`Select ${l.full_name}`}
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </td>
                     <td className="px-4 py-3 font-medium">{l.full_name}</td>
@@ -266,7 +274,7 @@ function LeadsPage() {
                     <td className="px-4 py-3 text-muted-foreground">{l.budget ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.property_type ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.source}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <Select value={l.status} onValueChange={(v) => updateStatus(l.id, v as Status)}>
                         <SelectTrigger className={cn("h-7 w-[120px] rounded-full border px-2 py-0.5 text-xs", statusClass[l.status as Status] ?? "")}>
                           <SelectValue />
@@ -329,6 +337,13 @@ function LeadsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <LeadDetailSheet
+        lead={openLeadId ? leads.find((l) => l.id === openLeadId) ?? null : null}
+        open={sheetOpen}
+        onOpenChange={(v) => { setSheetOpen(v); if (!v) setOpenLeadId(null); }}
+        onChanged={load}
+      />
     </AppShell>
   );
 }
