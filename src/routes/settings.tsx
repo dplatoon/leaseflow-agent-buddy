@@ -25,6 +25,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import ConnectedAccounts from "@/components/leaseflow/ConnectedAccounts";
+import ReminderRulesSection from "@/components/leaseflow/ReminderRulesSection";
 import {
   listAgents,
   createAgent,
