@@ -27,6 +27,13 @@ function DashboardPage() {
 
   useEffect(() => { load(); }, [user]);
 
+  useEffect(() => {
+    const onCreated = () => load();
+    window.addEventListener("leaseflow:lead-created", onCreated);
+    return () => window.removeEventListener("leaseflow:lead-created", onCreated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   const today = new Date(); today.setHours(0,0,0,0);
   const total = leads.length;
   const newToday = leads.filter((l) => new Date(l.created_at) >= today).length;

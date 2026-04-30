@@ -59,6 +59,9 @@ export default function NewLeadModal({
     reset();
     onOpenChange(false);
     onCreated?.();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("leaseflow:lead-created"));
+    }
   };
 
   return (
