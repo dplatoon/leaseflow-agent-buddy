@@ -19,8 +19,11 @@ import {
 import { createManualReminder } from "@/lib/reminders";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
-import { Phone, PhoneIncoming, PhoneOutgoing, Plus, Radio, Trash2 } from "lucide-react";
+import { Phone, PhoneIncoming, PhoneOutgoing, Plus, Radio, Trash2, Filter, RotateCw, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { parseFailureReason } from "@/lib/templates";
+
+export type CallsFilter = "all" | "failures" | CallOutcome;
 
 function toLocalInput(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -30,13 +33,17 @@ function toLocalInput(d: Date) {
 export default function LeadCallsSection({
   leadId,
   userId,
+  onRetryMessage,
 }: {
   leadId: string;
   userId: string;
+  onRetryMessage?: () => void;
 }) {
   const [items, setItems] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [filter, setFilter] = useState<CallsFilter>("all");
+  const [groupFailures, setGroupFailures] = useState(true);
 
   // Form state
   const [outcome, setOutcome] = useState<CallOutcome>("interested");
@@ -59,6 +66,14 @@ export default function LeadCallsSection({
   };
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [leadId]);
+
+  // Reload when calls change anywhere (e.g. SendMessageDialog logs new attempts)
+  useEffect(() => {
+    const onChanged = () => void load();
+    window.addEventListener("leaseflow:calls-changed", onChanged);
+    return () => window.removeEventListener("leaseflow:calls-changed", onChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId]);
 
   const reset = () => {
     setOutcome("interested");
@@ -116,6 +131,94 @@ export default function LeadCallsSection({
     try { await deleteCallLog(id); await load(); } finally { setBusyId(null); }
   };
 
+  // Derived: filtered list + outcome counts
+  const outcomeCounts = items.reduce<Record<CallOutcome, number>>((acc, c) => {
+    acc[c.outcome] = (acc[c.outcome] ?? 0) + 1;
+    return acc;
+  }, {} as Record<CallOutcome, number>);
+  const failedItems = items.filter((c) => c.outcome === "message_failed");
+  const failedCount = failedItems.length;
+
+  const visibleItems = items.filter((c) => {
+    if (filter === "all") return true;
+    if (filter === "failures") return c.outcome === "message_failed";
+    return c.outcome === filter;
+  });
+
+  // Group failures by reason for the dedicated failures view.
+  const failureGroups = (() => {
+    if (filter !== "failures" || !groupFailures) return null;
+    const map = new Map<string, CallLog[]>();
+    for (const c of failedItems) {
+      const reason = parseFailureReason(c.notes);
+      const arr = map.get(reason) ?? [];
+      arr.push(c);
+      map.set(reason, arr);
+    }
+    return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
+  })();
+
+  const renderItem = (c: CallLog) => {
+    const DirIcon = c.direction === "inbound" ? PhoneIncoming : PhoneOutgoing;
+    const isFailed = c.outcome === "message_failed";
+    return (
+      <li key={c.id} className="rounded-lg border border-border bg-background p-2.5 text-xs space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <DirIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+            <span className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-medium", OUTCOME_TONE[c.outcome])}>
+              {OUTCOME_LABELS[c.outcome]}
+            </span>
+            {c.source === "vapi" && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 text-primary px-1 py-0.5 text-[9px]">
+                <Radio className="h-2.5 w-2.5" /> vapi
+              </span>
+            )}
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {formatDuration(c.duration_seconds)}
+            </span>
+          </div>
+          <div className="text-[10px] text-muted-foreground shrink-0">
+            {format(new Date(c.created_at), "MMM d, h:mm a")} · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
+          </div>
+        </div>
+        {isFailed && (
+          <div className="flex items-center gap-1.5 text-[10px] text-destructive">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            <span>Reason: {parseFailureReason(c.notes)}</span>
+          </div>
+        )}
+        {c.notes && <div className="text-muted-foreground whitespace-pre-wrap">{c.notes}</div>}
+        {c.next_action_at && (
+          <div className="text-[10px] text-status-contacted">
+            Next action · {format(new Date(c.next_action_at), "MMM d, h:mm a")}
+          </div>
+        )}
+        <div className="flex justify-end gap-1">
+          {isFailed && onRetryMessage && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[11px] px-2 text-primary hover:text-primary"
+              onClick={onRetryMessage}
+            >
+              <RotateCw className="h-3 w-3 mr-1" /> Resend
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-[11px] px-2 text-destructive hover:text-destructive"
+            onClick={() => onDelete(c.id)}
+            disabled={busyId === c.id}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </li>
+    );
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -124,6 +227,11 @@ export default function LeadCallsSection({
         {items.length > 0 && (
           <span className="text-[10px] rounded-full bg-muted px-1.5 py-0.5 text-muted-foreground tabular-nums">
             {items.length}
+          </span>
+        )}
+        {failedCount > 0 && (
+          <span className="text-[10px] rounded-full bg-destructive/15 text-destructive border border-destructive/30 px-1.5 py-0.5 tabular-nums inline-flex items-center gap-0.5">
+            <AlertTriangle className="h-2.5 w-2.5" /> {failedCount} failed
           </span>
         )}
       </div>
@@ -203,58 +311,90 @@ export default function LeadCallsSection({
         </div>
       </details>
 
+      {/* Filter chips */}
+      {items.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1 text-[11px]">
+          <Filter className="h-3 w-3 text-muted-foreground" />
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={cn(
+              "rounded-full border px-2 py-0.5 transition-colors",
+              filter === "all" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            All <span className="opacity-70 tabular-nums">{items.length}</span>
+          </button>
+          {failedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilter("failures")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors",
+                filter === "failures"
+                  ? "bg-destructive/15 text-destructive border-destructive/30"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <AlertTriangle className="h-2.5 w-2.5" /> Failures <span className="opacity-70 tabular-nums">{failedCount}</span>
+            </button>
+          )}
+          {(Object.keys(outcomeCounts) as CallOutcome[])
+            .filter((o) => o !== "message_failed" && outcomeCounts[o] > 0)
+            .sort((a, b) => outcomeCounts[b] - outcomeCounts[a])
+            .map((o) => (
+              <button
+                key={o}
+                type="button"
+                onClick={() => setFilter(o)}
+                className={cn(
+                  "rounded-full border px-2 py-0.5 transition-colors",
+                  filter === o ? OUTCOME_TONE[o] : "border-border text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {OUTCOME_LABELS[o]} <span className="opacity-70 tabular-nums">{outcomeCounts[o]}</span>
+              </button>
+            ))}
+          {filter === "failures" && failedCount > 1 && (
+            <label className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={groupFailures}
+                onChange={(e) => setGroupFailures(e.target.checked)}
+                className="h-3 w-3 rounded border-border"
+              />
+              Group by reason
+            </label>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="text-xs text-muted-foreground">Loading…</div>
       ) : items.length === 0 ? (
         <div className="text-xs text-muted-foreground rounded-md border border-dashed border-border/60 px-3 py-2">
           No calls logged yet.
         </div>
+      ) : visibleItems.length === 0 ? (
+        <div className="text-xs text-muted-foreground rounded-md border border-dashed border-border/60 px-3 py-2">
+          No entries match this filter.
+        </div>
+      ) : failureGroups ? (
+        <div className="space-y-3">
+          {failureGroups.map(([reason, group]) => (
+            <div key={reason} className="space-y-1.5">
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive border border-destructive/30 px-2 py-0.5 font-medium">
+                  <AlertTriangle className="h-2.5 w-2.5" /> {reason}
+                </span>
+                <span className="text-muted-foreground tabular-nums">{group.length}</span>
+              </div>
+              <ul className="space-y-2">{group.map(renderItem)}</ul>
+            </div>
+          ))}
+        </div>
       ) : (
-        <ul className="space-y-2">
-          {items.map((c) => {
-            const DirIcon = c.direction === "inbound" ? PhoneIncoming : PhoneOutgoing;
-            return (
-              <li key={c.id} className="rounded-lg border border-border bg-background p-2.5 text-xs space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <DirIcon className="h-3 w-3 text-muted-foreground shrink-0" />
-                    <span className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-medium", OUTCOME_TONE[c.outcome])}>
-                      {OUTCOME_LABELS[c.outcome]}
-                    </span>
-                    {c.source === "vapi" && (
-                      <span className="inline-flex items-center gap-0.5 rounded bg-primary/10 text-primary px-1 py-0.5 text-[9px]">
-                        <Radio className="h-2.5 w-2.5" /> vapi
-                      </span>
-                    )}
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                      {formatDuration(c.duration_seconds)}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground shrink-0">
-                    {format(new Date(c.created_at), "MMM d, h:mm a")} · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
-                  </div>
-                </div>
-                {c.notes && <div className="text-muted-foreground whitespace-pre-wrap">{c.notes}</div>}
-                {c.next_action_at && (
-                  <div className="text-[10px] text-status-contacted">
-                    Next action · {format(new Date(c.next_action_at), "MMM d, h:mm a")}
-                  </div>
-                )}
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 text-[11px] px-2 text-destructive hover:text-destructive"
-                    onClick={() => onDelete(c.id)}
-                    disabled={busyId === c.id}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <ul className="space-y-2">{visibleItems.map(renderItem)}</ul>
       )}
     </div>
   );

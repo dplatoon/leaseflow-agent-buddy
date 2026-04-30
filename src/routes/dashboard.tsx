@@ -6,12 +6,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { statusClass, type Lead, type Status } from "@/lib/leaseflow";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Users, Sparkles, Calendar, CheckCircle2, Phone, PhoneCall } from "lucide-react";
+import { Users, Sparkles, Calendar, CheckCircle2, Phone, PhoneCall, MessageSquare, AlertTriangle } from "lucide-react";
 import { CALL_OUTCOMES, OUTCOME_LABELS, OUTCOME_TONE, type CallLog, type CallOutcome } from "@/lib/calls";
 import CallTrendSparkline from "@/components/leaseflow/CallTrendSparkline";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
+import { parseFailureReason } from "@/lib/templates";
 
 const TREND_FILTER_KEY = "leaseflow:dashboard:trend-outcome-filter";
 
@@ -106,6 +107,25 @@ function DashboardPage() {
     ["interested", "scheduled_viewing", "callback_requested", "not_qualified"].includes(c.outcome)
   ).length;
 
+  // Message delivery metrics
+  const msgSentToday = callsToday.filter((c) => c.outcome === "message_sent").length;
+  const msgFailedToday = callsToday.filter((c) => c.outcome === "message_failed").length;
+  const msgSentWeek = callsWeek.filter((c) => c.outcome === "message_sent").length;
+  const msgFailedWeek = callsWeek.filter((c) => c.outcome === "message_failed").length;
+  const totalMsgWeek = msgSentWeek + msgFailedWeek;
+  const successRate = totalMsgWeek > 0 ? Math.round((msgSentWeek / totalMsgWeek) * 100) : null;
+
+  // Failure reasons grouped (last 7 days)
+  const failureReasonCounts = (() => {
+    const map = new Map<string, number>();
+    for (const c of callsWeek) {
+      if (c.outcome !== "message_failed") continue;
+      const r = parseFailureReason(c.notes);
+      map.set(r, (map.get(r) ?? 0) + 1);
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  })();
+
   // Build last-7-days buckets (oldest → newest, including today).
   const dayBuckets = (() => {
     const days: { date: Date; key: string; label: string; total: number; perOutcome: Record<CallOutcome, number> }[] = [];
@@ -150,6 +170,23 @@ function DashboardPage() {
     { label: "New Today", value: newToday, icon: Sparkles, tint: "text-status-new" },
     { label: "Calls Today", value: callsToday.length, icon: Phone, tint: "text-status-contacted", sub: `${connectedToday} connected` },
     { label: "Calls This Week", value: totalWeekCalls, icon: PhoneCall, tint: "text-primary", sub: "Last 7 days" },
+    {
+      label: "Messages Today",
+      value: msgSentToday,
+      icon: MessageSquare,
+      tint: "text-primary",
+      sub: msgFailedToday > 0 ? `${msgFailedToday} failed` : "All sent",
+    },
+    {
+      label: "Messages This Week",
+      value: msgSentWeek,
+      icon: MessageSquare,
+      tint: "text-primary",
+      sub:
+        totalMsgWeek === 0
+          ? "No messages yet"
+          : `${msgFailedWeek} failed · ${successRate}% success`,
+    },
     { label: "Scheduled", value: scheduled, icon: Calendar, tint: "text-status-scheduled" },
     { label: "Closed", value: closed, icon: CheckCircle2, tint: "text-status-closed" },
   ];
@@ -176,6 +213,76 @@ function DashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* Message delivery breakdown */}
+        {totalMsgWeek > 0 && (
+          <div className="rounded-xl border border-border bg-surface">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div>
+                <h2 className="font-medium flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-primary" /> Message delivery — last 7 days
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {msgSentWeek} sent · {msgFailedWeek} failed
+                  {successRate !== null && ` · ${successRate}% success`}
+                </p>
+              </div>
+              {msgFailedWeek > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 text-destructive border border-destructive/30 px-2 py-0.5 text-xs font-medium">
+                  <AlertTriangle className="h-3 w-3" /> {msgFailedWeek} failed
+                </span>
+              )}
+            </div>
+
+            {/* Sent vs failed bar */}
+            <div className="px-5 py-4 space-y-3">
+              <div className="h-3 rounded-full bg-muted overflow-hidden flex">
+                <div
+                  className="h-full bg-primary/80"
+                  style={{ width: `${(msgSentWeek / totalMsgWeek) * 100}%` }}
+                  title={`${msgSentWeek} sent`}
+                />
+                <div
+                  className="h-full bg-destructive/70"
+                  style={{ width: `${(msgFailedWeek / totalMsgWeek) * 100}%` }}
+                  title={`${msgFailedWeek} failed`}
+                />
+              </div>
+              <div className="flex items-center gap-4 text-[11px]">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-primary/80" /> Sent <span className="text-muted-foreground tabular-nums">{msgSentWeek}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-destructive/70" /> Failed <span className="text-muted-foreground tabular-nums">{msgFailedWeek}</span>
+                </span>
+              </div>
+
+              {failureReasonCounts.length > 0 && (
+                <div className="border-t border-border pt-3 space-y-1.5">
+                  <div className="text-[11px] text-muted-foreground">Failure reasons</div>
+                  <ul className="space-y-1">
+                    {failureReasonCounts.map(([reason, count]) => {
+                      const pct = Math.round((count / msgFailedWeek) * 100);
+                      return (
+                        <li key={reason} className="flex items-center gap-3 text-xs">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive border border-destructive/30 px-2 py-0.5 font-medium shrink-0 min-w-[180px]">
+                            <AlertTriangle className="h-2.5 w-2.5" /> {reason}
+                          </span>
+                          <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full bg-destructive/60 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="tabular-nums w-16 text-right text-muted-foreground">
+                            {count} <span className="text-[10px]">({pct}%)</span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 7-day trend */}
         <div className="rounded-xl border border-border bg-surface">

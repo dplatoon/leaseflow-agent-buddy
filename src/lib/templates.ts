@@ -183,3 +183,19 @@ export async function logMessageSent(opts: {
 }): Promise<void> {
   return logMessageAttempt({ ...opts, status: "sent" });
 }
+
+/** Extract the failure reason we encoded into the call log note header. */
+export function parseFailureReason(note: string | null | undefined): string {
+  if (!note) return "Unknown";
+  const firstLine = note.split("\n", 1)[0] ?? "";
+  // Header shape: "WhatsApp failed · "tplName" — <reason>"
+  const m = firstLine.match(/—\s*(.+?)\s*$/);
+  if (m && m[1]) return m[1].trim();
+  return "Unknown";
+}
+
+/** Channel inferred from the note header ("WhatsApp" or "SMS"). */
+export function parseChannelFromNote(note: string | null | undefined): MessageChannel {
+  if (!note) return "whatsapp";
+  return /^SMS\b/i.test(note) ? "sms" : "whatsapp";
+}
