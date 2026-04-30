@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import logoMark from "@/assets/logo-mark.png";
+import GoogleAuthButton from "@/components/leaseflow/GoogleAuthButton";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({ meta: [{ title: "Sign up — LeaseFlow" }] }),
@@ -54,7 +55,15 @@ function SignupPage() {
         <div className="rounded-xl border border-border bg-surface p-6 md:p-8">
           <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
           <p className="text-sm text-muted-foreground mt-1">Start capturing rental leads in minutes.</p>
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          <div className="mt-6">
+            <GoogleAuthButton label="Sign up with Google" />
+          </div>
+          <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            OR
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <form onSubmit={onSubmit} className="mt-4 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full name</Label>
               <Input id="name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
