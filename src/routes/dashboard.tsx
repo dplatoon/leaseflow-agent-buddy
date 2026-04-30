@@ -6,13 +6,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { statusClass, type Lead, type Status } from "@/lib/leaseflow";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Users, Sparkles, Calendar, CheckCircle2, Phone, PhoneCall, MessageSquare, AlertTriangle, Download } from "lucide-react";
+import { Users, Sparkles, Calendar, CheckCircle2, Phone, PhoneCall, MessageSquare, AlertTriangle } from "lucide-react";
 import { CALL_OUTCOMES, OUTCOME_LABELS, OUTCOME_TONE, type CallLog, type CallOutcome } from "@/lib/calls";
 import CallTrendSparkline from "@/components/leaseflow/CallTrendSparkline";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
-import { parseFailureReason, parseChannelFromNote } from "@/lib/templates";
+import { parseFailureReason } from "@/lib/templates";
+import ExportFailuresButton from "@/components/leaseflow/ExportFailuresButton";
 import { toast } from "sonner";
 
 const TREND_FILTER_KEY = "leaseflow:dashboard:trend-outcome-filter";
@@ -41,7 +42,6 @@ function DashboardPage() {
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [trendFilter, setTrendFilter] = useState<Set<CallOutcome>>(() => new Set(loadTrendFilter()));
-  const [exporting, setExporting] = useState(false);
 
   // Persist filter
   useEffect(() => {
@@ -127,67 +127,6 @@ function DashboardPage() {
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   })();
-
-  const exportFailuresCsv = async () => {
-    if (!user) return;
-    setExporting(true);
-    try {
-      // Fetch ALL failed message logs for this user, plus matching lead names.
-      const { data: failRows, error: failErr } = await supabase
-        .from("call_logs" as never)
-        .select("*")
-        .eq("outcome", "message_failed")
-        .order("created_at", { ascending: false });
-      if (failErr) throw failErr;
-      const failures = (failRows ?? []) as unknown as CallLog[];
-      if (failures.length === 0) {
-        toast.info("No failed messages to export yet.");
-        return;
-      }
-      const leadIds = [...new Set(failures.map((f) => f.lead_id))];
-      const { data: leadRows } = await supabase
-        .from("leads")
-        .select("id, full_name, phone, location")
-        .in("id", leadIds);
-      const leadById = new Map<string, { full_name: string; phone: string | null; location: string | null }>(
-        (leadRows ?? []).map((l) => [l.id as string, l as { full_name: string; phone: string | null; location: string | null }]),
-      );
-
-      const headers = ["timestamp_iso", "timestamp_local", "lead_name", "lead_phone", "lead_location", "channel", "failure_reason", "notes"];
-      const escape = (val: unknown) => {
-        const s = val === null || val === undefined ? "" : String(val);
-        return `"${s.replace(/"/g, '""')}"`;
-      };
-      const rows = failures.map((f) => {
-        const lead = leadById.get(f.lead_id);
-        return [
-          f.created_at,
-          format(new Date(f.created_at), "yyyy-MM-dd HH:mm:ss"),
-          lead?.full_name ?? "",
-          lead?.phone ?? "",
-          lead?.location ?? "",
-          parseChannelFromNote(f.notes),
-          parseFailureReason(f.notes),
-          (f.notes ?? "").replace(/\r?\n/g, " ⏎ "),
-        ].map(escape).join(",");
-      });
-      const csv = [headers.join(","), ...rows].join("\n");
-      const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `message-failures-${format(new Date(), "yyyyMMdd-HHmmss")}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`Exported ${failures.length} failed message${failures.length === 1 ? "" : "s"}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Export failed");
-    } finally {
-      setExporting(false);
-    }
-  };
 
   // Build last-7-days buckets (oldest → newest, including today).
   const dayBuckets = (() => {
