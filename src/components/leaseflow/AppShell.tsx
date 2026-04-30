@@ -14,7 +14,7 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/pipeline", label: "Pipeline", icon: KanbanSquare },
-  { to: "/webhook-logs", label: "Webhook Logs", icon: Webhook },
+  { to: "/webhook-events", label: "Webhook Events", icon: Webhook },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
