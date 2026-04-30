@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { CalendarIcon, ChevronDown, ChevronRight, Download, RefreshCw } from "lucide-react";
 import AppShell from "@/components/leaseflow/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -132,6 +132,46 @@ function WebhookLogsPage() {
   const toggle = (id: string) =>
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  const exportCsv = () => {
+    const headers = [
+      "request_id",
+      "status",
+      "agent_id",
+      "created_at",
+      "payload_summary",
+    ];
+    const escape = (val: unknown) => {
+      const s =
+        val === null || val === undefined
+          ? ""
+          : typeof val === "string"
+            ? val
+            : JSON.stringify(val);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const rows = logs.map((l) =>
+      [
+        l.request_id,
+        l.status,
+        l.agent_id ?? "",
+        l.created_at,
+        l.payload_summary ?? {},
+      ]
+        .map(escape)
+        .join(","),
+    );
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `webhook-logs-${format(new Date(), "yyyyMMdd-HHmmss")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <AppShell gated>
       <div className="space-y-6">
@@ -142,9 +182,20 @@ function WebhookLogsPage() {
               Every Vapi webhook attempt with payload summaries for debugging.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={load} className="gap-2">
-            <RefreshCw className="h-4 w-4" /> Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCsv}
+              disabled={logs.length === 0}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" /> Export CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={load} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
