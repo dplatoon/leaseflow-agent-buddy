@@ -6,6 +6,8 @@ import { LayoutDashboard, Users, KanbanSquare, Settings, LogOut, Plus, Menu, X, 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import NewLeadModal from "./NewLeadModal";
+import { useSubscription } from "@/hooks/useSubscription";
+import { TrialBanner, TrialExpired } from "./TrialGate";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -19,17 +21,20 @@ export default function AppShell({
   showSearch = false,
   searchValue,
   onSearchChange,
+  gated = false,
 }: {
   children: React.ReactNode;
   showSearch?: boolean;
   searchValue?: string;
   onSearchChange?: (v: string) => void;
+  gated?: boolean;
 }) {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [leadOpen, setLeadOpen] = useState(false);
+  const sub = useSubscription();
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
