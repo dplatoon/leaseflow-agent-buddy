@@ -90,6 +90,10 @@ function jsonResponse(status: number, body: Record<string, unknown>, requestId: 
     headers: {
       "Content-Type": "application/json",
       "x-request-id": requestId,
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "no-referrer",
+      "Cache-Control": "no-store",
     },
   });
 }
