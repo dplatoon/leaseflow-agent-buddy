@@ -10,6 +10,23 @@ import { Users, Sparkles, Calendar, CheckCircle2, Phone, PhoneCall } from "lucid
 import { CALL_OUTCOMES, OUTCOME_LABELS, OUTCOME_TONE, type CallLog, type CallOutcome } from "@/lib/calls";
 import CallTrendSparkline from "@/components/leaseflow/CallTrendSparkline";
 import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Filter } from "lucide-react";
+
+const TREND_FILTER_KEY = "leaseflow:dashboard:trend-outcome-filter";
+
+function loadTrendFilter(): CallOutcome[] {
+  if (typeof window === "undefined") return [...CALL_OUTCOMES];
+  try {
+    const raw = localStorage.getItem(TREND_FILTER_KEY);
+    if (!raw) return [...CALL_OUTCOMES];
+    const parsed = JSON.parse(raw) as string[];
+    const valid = parsed.filter((o): o is CallOutcome => (CALL_OUTCOMES as readonly string[]).includes(o));
+    return valid.length > 0 ? valid : [...CALL_OUTCOMES];
+  } catch {
+    return [...CALL_OUTCOMES];
+  }
+}
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — LeaseFlow" }] }),
@@ -21,6 +38,25 @@ function DashboardPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [trendFilter, setTrendFilter] = useState<Set<CallOutcome>>(() => new Set(loadTrendFilter()));
+
+  // Persist filter
+  useEffect(() => {
+    try {
+      localStorage.setItem(TREND_FILTER_KEY, JSON.stringify([...trendFilter]));
+    } catch { /* ignore */ }
+  }, [trendFilter]);
+
+  const toggleOutcome = (o: CallOutcome) => {
+    setTrendFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(o)) next.delete(o); else next.add(o);
+      return next;
+    });
+  };
+  const setAllOutcomes = () => setTrendFilter(new Set(CALL_OUTCOMES));
+  const clearOutcomes = () => setTrendFilter(new Set());
+  const isFilterActive = trendFilter.size > 0 && trendFilter.size < CALL_OUTCOMES.length;
 
   const load = async () => {
     if (!user) return;
@@ -99,6 +135,16 @@ function DashboardPage() {
   const dayLabels = dayBuckets.map((d) => d.label);
   const peakDay = dayBuckets.reduce((m, d) => (d.total > m.total ? d : m), dayBuckets[0]);
 
+  // Filtered series (sum of selected outcomes per day)
+  const filteredDaySeries = dayBuckets.map((d) =>
+    [...trendFilter].reduce((sum, o) => sum + d.perOutcome[o], 0)
+  );
+  const filteredTotal = filteredDaySeries.reduce((a, b) => a + b, 0);
+  const filteredPeak = dayBuckets.reduce(
+    (m, d, i) => (filteredDaySeries[i] > m.count ? { count: filteredDaySeries[i], label: d.label } : m),
+    { count: 0, label: "—" }
+  );
+
   const kpis = [
     { label: "Total Leads", value: total, icon: Users, tint: "text-primary" },
     { label: "New Today", value: newToday, icon: Sparkles, tint: "text-status-new" },
@@ -133,39 +179,87 @@ function DashboardPage() {
 
         {/* 7-day trend */}
         <div className="rounded-xl border border-border bg-surface">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
-            <div>
-              <h2 className="font-medium">Calls trend — last 7 days</h2>
-              <p className="text-xs text-muted-foreground">Daily totals plus per-outcome breakdown.</p>
+          <div className="px-5 py-4 border-b border-border space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-medium">Calls trend — last 7 days</h2>
+                <p className="text-xs text-muted-foreground">
+                  {isFilterActive
+                    ? `Filtered to ${trendFilter.size} of ${CALL_OUTCOMES.length} outcomes.`
+                    : "Daily totals plus per-outcome breakdown."}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-xs text-muted-foreground">Peak day</div>
+                <div className="text-sm font-medium tabular-nums">
+                  {(isFilterActive ? filteredPeak.count : peakDay.total)} <span className="text-muted-foreground font-normal">· {isFilterActive ? filteredPeak.label : peakDay.label}</span>
+                </div>
+              </div>
             </div>
-            <div className="text-right shrink-0">
-              <div className="text-xs text-muted-foreground">Peak day</div>
-              <div className="text-sm font-medium tabular-nums">{peakDay.total} <span className="text-muted-foreground font-normal">· {peakDay.label}</span></div>
+
+            {/* Outcome filter chips */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground mr-1">Show:</span>
+              {CALL_OUTCOMES.map((o) => {
+                const active = trendFilter.has(o);
+                const total = outcomeCounts[o];
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => toggleOutcome(o)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                      active ? OUTCOME_TONE[o] : "border-border text-muted-foreground/70 bg-transparent hover:text-foreground hover:border-foreground/30",
+                    )}
+                    aria-pressed={active}
+                  >
+                    {OUTCOME_LABELS[o]}
+                    <span className="tabular-nums opacity-70">{total}</span>
+                  </button>
+                );
+              })}
+              <span className="ml-auto flex items-center gap-1">
+                <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2" onClick={setAllOutcomes} disabled={trendFilter.size === CALL_OUTCOMES.length}>
+                  All
+                </Button>
+                <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2" onClick={clearOutcomes} disabled={trendFilter.size === 0}>
+                  None
+                </Button>
+              </span>
             </div>
           </div>
           {totalWeekCalls === 0 ? (
             <div className="p-6 text-sm text-muted-foreground">
               No calls in the last 7 days yet.
             </div>
+          ) : trendFilter.size === 0 ? (
+            <div className="p-6 text-sm text-muted-foreground">
+              No outcomes selected. Use the chips above to pick which outcomes to chart.
+            </div>
           ) : (
             <div className="p-5 space-y-4">
               {/* Total trend */}
               <div className="flex items-center gap-4">
                 <div className="min-w-[140px]">
-                  <div className="text-xs text-muted-foreground">All calls</div>
-                  <div className="text-2xl font-semibold tabular-nums">{totalWeekCalls}</div>
+                  <div className="text-xs text-muted-foreground">{isFilterActive ? "Selected calls" : "All calls"}</div>
+                  <div className="text-2xl font-semibold tabular-nums">{isFilterActive ? filteredTotal : totalWeekCalls}</div>
+                  {isFilterActive && (
+                    <div className="text-[10px] text-muted-foreground">of {totalWeekCalls} total</div>
+                  )}
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <CallTrendSparkline values={totalSeries} labels={dayLabels} width={320} height={48} />
+                  <CallTrendSparkline values={isFilterActive ? filteredDaySeries : totalSeries} labels={dayLabels} width={320} height={48} />
                 </div>
               </div>
 
               {/* Per-day axis labels */}
               <div className="grid grid-cols-7 gap-1 text-[10px] text-muted-foreground tabular-nums">
-                {dayBuckets.map((d) => (
+                {dayBuckets.map((d, i) => (
                   <div key={d.key} className="text-center">
                     <div>{format(d.date, "EEE")}</div>
-                    <div className="text-foreground font-medium">{d.total}</div>
+                    <div className="text-foreground font-medium">{isFilterActive ? filteredDaySeries[i] : d.total}</div>
                   </div>
                 ))}
               </div>
@@ -173,6 +267,7 @@ function DashboardPage() {
               {/* Per-outcome sparklines */}
               <div className="border-t border-border pt-4 space-y-2">
                 {CALL_OUTCOMES
+                  .filter((o) => trendFilter.has(o))
                   .map((o) => ({
                     outcome: o,
                     series: dayBuckets.map((d) => d.perOutcome[o]),
@@ -191,6 +286,11 @@ function DashboardPage() {
                       <span className="text-xs tabular-nums w-10 text-right text-muted-foreground">{total}</span>
                     </div>
                   ))}
+                {CALL_OUTCOMES.filter((o) => trendFilter.has(o)).every((o) => outcomeCounts[o] === 0) && (
+                  <div className="text-xs text-muted-foreground italic">
+                    No calls in the selected outcomes for the last 7 days.
+                  </div>
+                )}
               </div>
             </div>
           )}
