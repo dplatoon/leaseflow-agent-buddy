@@ -9,7 +9,7 @@ import { Link as LinkIcon, MessageSquare, Phone, Send, Sparkles } from "lucide-r
 import {
   buildLink,
   fetchTemplates,
-  logMessageSent,
+  logMessageAttempt,
   normalizePhone,
   renderTemplate,
   type MessageChannel,
@@ -42,7 +42,8 @@ export default function SendMessageDialog({
 
   const isBulk = leads.length > 1;
   const valid = leads.filter((l) => normalizePhone(l.phone).length >= 6);
-  const skipped = leads.length - valid.length;
+  const invalid = leads.filter((l) => normalizePhone(l.phone).length < 6);
+  const skipped = invalid.length;
   const previewLead = valid[0] ?? leads[0] ?? null;
 
   // Load templates when dialog opens
@@ -93,39 +94,63 @@ export default function SendMessageDialog({
     try {
       // Bulk: open one tab per lead, staggered to avoid popup-blocker / overload.
       let opened = 0;
+      let failed = 0;
       for (let i = 0; i < valid.length; i++) {
         const lead = valid[i];
         const msg = renderTemplate(effectiveBody, lead, agentName);
         const link = buildLink(channel, lead.phone ?? "", msg);
-        if (!link) continue;
-        // First tab synchronously to maximize popup-blocker bypass.
-        if (i === 0) {
-          const w = window.open(link, "_blank", "noopener,noreferrer");
-          if (w) opened++;
-        } else {
+        const tplName = selectedTemplate?.name ?? "Custom message";
+        const baseLog = {
+          userId: user.id,
+          leadId: lead.id,
+          channel,
+          templateName: tplName,
+          preview: msg.slice(0, 280),
+        };
+        if (!link) {
+          failed++;
+          void logMessageAttempt({ ...baseLog, status: "failed", failureReason: "Could not build link" });
+          continue;
+        }
+        if (i > 0) {
           // eslint-disable-next-line no-await-in-loop
           await new Promise((r) => setTimeout(r, STAGGER_MS));
-          const w = window.open(link, "_blank", "noopener,noreferrer");
-          if (w) opened++;
         }
-        // Fire-and-forget log (don't block UI)
-        void logMessageSent({
+        const w = window.open(link, "_blank", "noopener,noreferrer");
+        if (w) {
+          opened++;
+          void logMessageAttempt({ ...baseLog, status: "sent" });
+        } else {
+          failed++;
+          void logMessageAttempt({ ...baseLog, status: "failed", failureReason: "Browser blocked popup" });
+        }
+      }
+      // Log skipped (invalid phone) leads as failed too, so they show up in history.
+      for (const lead of invalid) {
+        const msg = renderTemplate(effectiveBody, lead, agentName);
+        void logMessageAttempt({
           userId: user.id,
           leadId: lead.id,
           channel,
           templateName: selectedTemplate?.name ?? "Custom message",
           preview: msg.slice(0, 280),
+          status: "failed",
+          failureReason: "No valid phone number",
         });
       }
       if (opened === 0) {
-        toast.error("Browser blocked the popup. Allow popups for this site and try again.");
+        toast.error(
+          valid.length === 0
+            ? "No valid phone numbers — logged as failed"
+            : "Browser blocked the popup. Allow popups for this site and try again."
+        );
       } else if (opened < valid.length) {
-        toast.warning(`Opened ${opened} of ${valid.length}. Allow popups to send the rest.`);
+        toast.warning(`Opened ${opened} of ${valid.length}. ${failed} logged as failed — allow popups to retry.`);
       } else {
         toast.success(`Opened ${opened} ${channel === "sms" ? "SMS" : "WhatsApp"} ${opened === 1 ? "thread" : "threads"}`);
       }
       if (skipped > 0) {
-        toast.warning(`${skipped} skipped — no phone number`);
+        toast.warning(`${skipped} skipped — no phone number (logged as failed)`);
       }
       onOpenChange(false);
     } finally {

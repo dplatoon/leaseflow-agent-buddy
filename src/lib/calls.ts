@@ -10,6 +10,7 @@ export const CALL_OUTCOMES = [
   "wrong_number",
   "other",
   "message_sent",
+  "message_failed",
 ] as const;
 export type CallOutcome = (typeof CALL_OUTCOMES)[number];
 
@@ -23,6 +24,7 @@ export const OUTCOME_LABELS: Record<CallOutcome, string> = {
   wrong_number: "Wrong number",
   other: "Other",
   message_sent: "Message sent",
+  message_failed: "Message failed",
 };
 
 /** Tailwind class hints per outcome — use semantic-ish status tokens. */
@@ -36,6 +38,7 @@ export const OUTCOME_TONE: Record<CallOutcome, string> = {
   wrong_number: "bg-status-lost/15 text-status-lost border-status-lost/30",
   other: "bg-muted text-muted-foreground border-border",
   message_sent: "bg-primary/15 text-primary border-primary/30",
+  message_failed: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
 export type CallDirection = "outbound" | "inbound";
