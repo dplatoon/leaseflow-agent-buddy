@@ -6,6 +6,8 @@ import { LayoutDashboard, Users, KanbanSquare, Settings, LogOut, Plus, Menu, X, 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import NewLeadModal from "./NewLeadModal";
+import { useSubscription } from "@/hooks/useSubscription";
+import { TrialBanner, TrialExpired } from "./TrialGate";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -19,17 +21,20 @@ export default function AppShell({
   showSearch = false,
   searchValue,
   onSearchChange,
+  gated = false,
 }: {
   children: React.ReactNode;
   showSearch?: boolean;
   searchValue?: string;
   onSearchChange?: (v: string) => void;
+  gated?: boolean;
 }) {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [leadOpen, setLeadOpen] = useState(false);
+  const sub = useSubscription();
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
@@ -108,11 +113,20 @@ export default function AppShell({
           ) : (
             <div className="flex-1" />
           )}
-          <Button onClick={() => setLeadOpen(true)} className="gap-2">
+          <Button
+            onClick={() => setLeadOpen(true)}
+            className="gap-2"
+            disabled={gated && !sub.loading && !sub.hasAccess}
+          >
             <Plus className="h-4 w-4" /> New Lead
           </Button>
         </header>
-        <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-4 md:p-6 overflow-x-hidden space-y-4">
+          {gated && !sub.loading && !sub.isSubscribed && !sub.trialExpired && (
+            <TrialBanner daysLeft={sub.trialDaysLeft} />
+          )}
+          {gated && !sub.loading && !sub.hasAccess ? <TrialExpired /> : children}
+        </main>
       </div>
 
       <NewLeadModal open={leadOpen} onOpenChange={setLeadOpen} />
