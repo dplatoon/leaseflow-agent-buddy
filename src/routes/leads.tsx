@@ -394,6 +394,13 @@ function LeadsPage() {
         onOpenChange={setBulkSendOpen}
         agentName={user?.user_metadata?.full_name ?? null}
       />
+
+      <RetryFailedMessagesDialog
+        leads={leads.filter((l) => selected.has(l.id))}
+        open={retryOpen}
+        onOpenChange={setRetryOpen}
+        onDone={load}
+      />
     </AppShell>
   );
 }
