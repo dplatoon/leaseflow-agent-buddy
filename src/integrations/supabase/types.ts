@@ -47,6 +47,51 @@ export type Database = {
         }
         Relationships: []
       }
+      call_logs: {
+        Row: {
+          created_at: string
+          direction: string
+          duration_seconds: number | null
+          id: string
+          lead_id: string
+          next_action_at: string | null
+          notes: string | null
+          outcome: string
+          source: string
+          updated_at: string
+          user_id: string
+          vapi_call_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          direction?: string
+          duration_seconds?: number | null
+          id?: string
+          lead_id: string
+          next_action_at?: string | null
+          notes?: string | null
+          outcome?: string
+          source?: string
+          updated_at?: string
+          user_id: string
+          vapi_call_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          duration_seconds?: number | null
+          id?: string
+          lead_id?: string
+          next_action_at?: string | null
+          notes?: string | null
+          outcome?: string
+          source?: string
+          updated_at?: string
+          user_id?: string
+          vapi_call_id?: string | null
+        }
+        Relationships: []
+      }
       email_resend_attempts: {
         Row: {
           created_at: string

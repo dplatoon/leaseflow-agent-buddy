@@ -12,6 +12,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { Phone, Trash2, Clock, Radio, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import LeadRemindersSection from "@/components/leaseflow/LeadRemindersSection";
+import LeadCallsSection from "@/components/leaseflow/LeadCallsSection";
 import { handleStatusChange } from "@/lib/reminders";
 import { useReminderRules } from "@/hooks/useReminderRules";
 import { useAuth } from "@/hooks/useAuth";
@@ -203,6 +204,12 @@ export default function LeadDetailSheet({
           {user && (
             <div className="pt-2 border-t border-border">
               <LeadRemindersSection leadId={draft.id} userId={user.id} />
+            </div>
+          )}
+
+          {user && (
+            <div className="pt-2 border-t border-border">
+              <LeadCallsSection leadId={draft.id} userId={user.id} />
             </div>
           )}
 
