@@ -24,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
 import LeadDetailSheet from "@/components/leaseflow/LeadDetailSheet";
+import { handleStatusChange } from "@/lib/reminders";
+import { useReminderRules } from "@/hooks/useReminderRules";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -44,6 +46,7 @@ export const Route = createFileRoute("/leads")({
 
 function LeadsPage() {
   const { user } = useAuth();
+  const { rules } = useReminderRules();
   const navigate = Route.useNavigate();
   const { page, pageSize, status: statusFilter, q: search } = Route.useSearch();
 
@@ -117,6 +120,9 @@ function LeadsPage() {
       toast.error(error.message);
     } else {
       toast.success("Status updated");
+      if (user && rules) {
+        try { await handleStatusChange({ userId: user.id, leadId: id, newStatus: status, rules }); } catch {}
+      }
     }
   };
 
@@ -142,6 +148,13 @@ function LeadsPage() {
     setBulkBusy(false);
     if (error) return toast.error(error.message);
     toast.success(`Updated ${selectedIds.length} lead${selectedIds.length === 1 ? "" : "s"} to ${status}`);
+    if (user && rules) {
+      await Promise.all(
+        selectedIds.map((id) =>
+          handleStatusChange({ userId: user.id, leadId: id, newStatus: status, rules }).catch(() => {})
+        )
+      );
+    }
     setSelected(new Set());
     load();
   };
