@@ -46,7 +46,7 @@ export const Route = createFileRoute("/settings")({
 
 type Profile = {
   id: string; full_name: string | null; email: string | null;
-  is_subscribed: boolean; agent_id: string; stripe_customer_id: string | null;
+  agent_id: string;
 };
 
 type Agent = {
@@ -289,7 +289,7 @@ function SettingsPage() {
       <div className="space-y-6 max-w-3xl">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground">Manage your profile, subscription, and Vapi integration.</p>
+          <p className="text-sm text-muted-foreground">Manage your profile and Vapi integration.</p>
         </div>
 
         {/* Profile */}
@@ -306,27 +306,6 @@ function SettingsPage() {
             </div>
           </div>
           <Button onClick={saveName} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
-        </section>
-
-        {/* Subscription */}
-        <section className="rounded-xl border border-border bg-surface p-5 space-y-3">
-          <h2 className="font-medium">Subscription</h2>
-          {profile?.is_subscribed ? (
-            <div className="flex items-center justify-between">
-              <span className="rounded-full border border-status-closed/30 bg-status-closed/15 text-status-closed px-3 py-1 text-xs">Active — Pro Plan</span>
-              <Button variant="outline" disabled>Manage subscription</Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="font-medium">LeaseFlow Pro</div>
-                <div className="text-sm text-muted-foreground">৳3,500/month · unlimited leads & Vapi capture</div>
-              </div>
-              <Button onClick={() => toast.info("Stripe checkout will be wired in the next step.")}>
-                Upgrade to Pro
-              </Button>
-            </div>
-          )}
         </section>
 
         <ConnectedAccounts />
