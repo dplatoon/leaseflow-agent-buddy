@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WebhookLogsRouteImport } from './routes/webhook-logs'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PipelineRouteImport } from './routes/pipeline'
@@ -18,6 +19,11 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicVapiWebhookRouteImport } from './routes/api/public/vapi-webhook'
 
+const WebhookLogsRoute = WebhookLogsRouteImport.update({
+  id: '/webhook-logs',
+  path: '/webhook-logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof PipelineRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/webhook-logs': typeof WebhookLogsRoute
   '/api/public/vapi-webhook': typeof ApiPublicVapiWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/pipeline': typeof PipelineRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/webhook-logs': typeof WebhookLogsRoute
   '/api/public/vapi-webhook': typeof ApiPublicVapiWebhookRoute
 }
 export interface FileRoutesById {
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/pipeline': typeof PipelineRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/webhook-logs': typeof WebhookLogsRoute
   '/api/public/vapi-webhook': typeof ApiPublicVapiWebhookRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/settings'
     | '/signup'
+    | '/webhook-logs'
     | '/api/public/vapi-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/settings'
     | '/signup'
+    | '/webhook-logs'
     | '/api/public/vapi-webhook'
   id:
     | '__root__'
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/settings'
     | '/signup'
+    | '/webhook-logs'
     | '/api/public/vapi-webhook'
   fileRoutesById: FileRoutesById
 }
@@ -131,11 +143,19 @@ export interface RootRouteChildren {
   PipelineRoute: typeof PipelineRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
+  WebhookLogsRoute: typeof WebhookLogsRoute
   ApiPublicVapiWebhookRoute: typeof ApiPublicVapiWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/webhook-logs': {
+      id: '/webhook-logs'
+      path: '/webhook-logs'
+      fullPath: '/webhook-logs'
+      preLoaderRoute: typeof WebhookLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   PipelineRoute: PipelineRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
+  WebhookLogsRoute: WebhookLogsRoute,
   ApiPublicVapiWebhookRoute: ApiPublicVapiWebhookRoute,
 }
 export const routeTree = rootRouteImport

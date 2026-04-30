@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, KanbanSquare, Settings, LogOut, Plus, Menu, X, Search } from "lucide-react";
+import { LayoutDashboard, Users, KanbanSquare, Settings, LogOut, Plus, Menu, X, Search, Webhook } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import NewLeadModal from "./NewLeadModal";
@@ -13,6 +13,7 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/pipeline", label: "Pipeline", icon: KanbanSquare },
+  { to: "/webhook-logs", label: "Webhook Logs", icon: Webhook },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
