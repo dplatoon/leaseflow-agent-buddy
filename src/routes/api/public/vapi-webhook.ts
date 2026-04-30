@@ -236,19 +236,10 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
         };
 
         const expected = process.env.VAPI_WEBHOOK_SECRET;
-        if (!expected) {
-          return finish(
-            500,
-            { error: "Webhook not configured" },
-            "error",
-            "misconfigured",
-            { reason: "VAPI_WEBHOOK_SECRET not set" },
-          );
-        }
         const provided = request.headers.get("x-vapi-secret");
-        if (!provided || !safeEqual(provided, expected)) {
+        if (!provided) {
           return finish(401, { error: "Unauthorized" }, "warn", "unauthorized", {
-            secret_present: Boolean(provided),
+            secret_present: false,
           });
         }
 
@@ -354,7 +345,7 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
         // workspace-wide fallback so existing integrations keep working.
         const userSecret = (profile as { webhook_secret?: string | null }).webhook_secret;
         const secretMatchesUser = userSecret ? safeEqual(provided, userSecret) : false;
-        const secretMatchesGlobal = safeEqual(provided, expected);
+        const secretMatchesGlobal = expected ? safeEqual(provided, expected) : false;
         if (!secretMatchesUser && !secretMatchesGlobal) {
           return finish(401, { error: "Unauthorized" }, "warn", "unauthorized", {
             agent_id: p.agent_id,
