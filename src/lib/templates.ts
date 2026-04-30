@@ -142,19 +142,28 @@ export async function deleteTemplate(id: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Best-effort: log a "message_sent" entry against a lead. */
-export async function logMessageSent(opts: {
+export type MessageDeliveryStatus = "sent" | "failed";
+
+/** Best-effort: log a message attempt (sent or failed) against a lead. */
+export async function logMessageAttempt(opts: {
   userId: string;
   leadId: string;
   channel: MessageChannel;
   templateName: string;
   preview: string;
+  status: MessageDeliveryStatus;
+  failureReason?: string;
 }): Promise<void> {
-  const note = `${opts.channel === "sms" ? "SMS" : "WhatsApp"} · "${opts.templateName}"\n\n${opts.preview}`;
+  const channelLabel = opts.channel === "sms" ? "SMS" : "WhatsApp";
+  const header =
+    opts.status === "failed"
+      ? `${channelLabel} failed · "${opts.templateName}"${opts.failureReason ? ` — ${opts.failureReason}` : ""}`
+      : `${channelLabel} · "${opts.templateName}"`;
+  const note = `${header}\n\n${opts.preview}`;
   await supabase.from("call_logs" as never).insert({
     user_id: opts.userId,
     lead_id: opts.leadId,
-    outcome: "message_sent",
+    outcome: opts.status === "failed" ? "message_failed" : "message_sent",
     direction: "outbound",
     notes: note,
     source: "manual",
@@ -162,4 +171,15 @@ export async function logMessageSent(opts: {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("leaseflow:calls-changed"));
   }
+}
+
+/** Backwards-compatible alias. */
+export async function logMessageSent(opts: {
+  userId: string;
+  leadId: string;
+  channel: MessageChannel;
+  templateName: string;
+  preview: string;
+}): Promise<void> {
+  return logMessageAttempt({ ...opts, status: "sent" });
 }
