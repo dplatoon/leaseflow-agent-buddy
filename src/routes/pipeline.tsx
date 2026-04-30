@@ -17,9 +17,11 @@ import {
 } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Phone, MapPin, Clock, Radio } from "lucide-react";
+import { Phone, MapPin, Clock, Radio, AlertTriangle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
+import LeadDetailSheet from "@/components/leaseflow/LeadDetailSheet";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline — LeaseFlow" }] }),
@@ -33,12 +35,25 @@ const urgencyTone: Record<string, string> = {
   Flexible: "bg-muted text-muted-foreground border-border",
 };
 
+// A lead is "stale" if it's been sitting in an early-funnel column for more
+// than 24h with no movement. Closed/Lost are terminal — they're never stale.
+const STALE_HOURS = 24;
+const STALE_STATUSES = new Set<Status>(["New", "Contacted"]);
+function isStale(lead: Lead) {
+  if (!STALE_STATUSES.has(lead.status as Status)) return false;
+  const ageMs = Date.now() - new Date(lead.created_at).getTime();
+  return ageMs > STALE_HOURS * 60 * 60 * 1000;
+}
+
 function PipelinePage() {
   const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [staleOnly, setStaleOnly] = useState(false);
+  const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const load = async () => {
@@ -59,11 +74,23 @@ function PipelinePage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return leads;
-    return leads.filter((l) =>
-      [l.full_name, l.phone, l.location, l.budget].some((v) => v?.toLowerCase().includes(q))
-    );
-  }, [leads, search]);
+    let out = leads;
+    if (q) {
+      out = out.filter((l) =>
+        [l.full_name, l.phone, l.location, l.budget].some((v) => v?.toLowerCase().includes(q))
+      );
+    }
+    if (staleOnly) out = out.filter(isStale);
+    return out;
+  }, [leads, search, staleOnly]);
+
+  const totalStale = useMemo(() => leads.filter(isStale).length, [leads]);
+  const openLead = openLeadId ? leads.find((l) => l.id === openLeadId) ?? null : null;
+
+  const openCard = (id: string) => {
+    setOpenLeadId(id);
+    setSheetOpen(true);
+  };
 
   const onDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string);
   const onDragEnd = async (e: DragEndEvent) => {
@@ -92,14 +119,33 @@ function PipelinePage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
-            <p className="text-sm text-muted-foreground">Drag a lead to update its status. {filtered.length} of {leads.length} shown.</p>
+            <p className="text-sm text-muted-foreground">
+              Drag to change status, click a card to view details. {filtered.length} of {leads.length} shown
+              {totalStale > 0 && (
+                <> · <span className="text-status-lost font-medium">{totalStale} stale</span></>
+              )}.
+            </p>
           </div>
-          <Input
-            placeholder="Filter by name, phone, location…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full sm:w-72 bg-surface"
-          />
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <Button
+              type="button"
+              variant={staleOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => setStaleOnly((v) => !v)}
+              className="gap-2"
+              disabled={totalStale === 0 && !staleOnly}
+              title={`Show only leads in New/Contacted older than ${STALE_HOURS}h`}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Stale {totalStale > 0 && <span className="tabular-nums">({totalStale})</span>}
+            </Button>
+            <Input
+              placeholder="Filter by name, phone, location…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full sm:w-72 bg-surface"
+            />
+          </div>
         </div>
 
         {loading ? (
@@ -108,7 +154,12 @@ function PipelinePage() {
           <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               {STATUSES.map((s) => (
-                <Column key={s} status={s} leads={filtered.filter((l) => l.status === s)} />
+                <Column
+                  key={s}
+                  status={s}
+                  leads={filtered.filter((l) => l.status === s)}
+                  onOpen={openCard}
+                />
               ))}
             </div>
             <DragOverlay>
@@ -117,12 +168,20 @@ function PipelinePage() {
           </DndContext>
         )}
       </div>
+
+      <LeadDetailSheet
+        lead={openLead}
+        open={sheetOpen}
+        onOpenChange={(v) => { setSheetOpen(v); if (!v) setOpenLeadId(null); }}
+        onChanged={load}
+      />
     </AppShell>
   );
 }
 
-function Column({ status, leads }: { status: Status; leads: Lead[] }) {
+function Column({ status, leads, onOpen }: { status: Status; leads: Lead[]; onOpen: (id: string) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const staleCount = leads.filter(isStale).length;
   return (
     <div
       ref={setNodeRef}
@@ -133,10 +192,21 @@ function Column({ status, leads }: { status: Status; leads: Lead[] }) {
     >
       <div className="flex items-center justify-between px-1 py-1 sticky top-0">
         <span className={cn("rounded-full border px-2 py-0.5 text-xs font-medium", statusClass[status])}>{status}</span>
-        <span className="text-xs text-muted-foreground tabular-nums">{leads.length}</span>
+        <div className="flex items-center gap-1.5">
+          {staleCount > 0 && (
+            <span
+              title={`${staleCount} lead${staleCount === 1 ? "" : "s"} older than ${STALE_HOURS}h`}
+              className="inline-flex items-center gap-0.5 rounded-full bg-status-lost/15 text-status-lost border border-status-lost/30 px-1.5 py-0.5 text-[10px] font-medium"
+            >
+              <AlertTriangle className="h-2.5 w-2.5" />
+              {staleCount}
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground tabular-nums">{leads.length}</span>
+        </div>
       </div>
       <div className="flex-1 space-y-2">
-        {leads.map((l) => <LeadCard key={l.id} lead={l} />)}
+        {leads.map((l) => <LeadCard key={l.id} lead={l} onOpen={onOpen} />)}
         {leads.length === 0 && (
           <div className="text-xs text-muted-foreground text-center py-8 border border-dashed border-border/60 rounded-lg">
             Drop here
@@ -147,10 +217,11 @@ function Column({ status, leads }: { status: Status; leads: Lead[] }) {
   );
 }
 
-function LeadCard({ lead, dragging = false }: { lead: Lead; dragging?: boolean }) {
+function LeadCard({ lead, dragging = false, onOpen }: { lead: Lead; dragging?: boolean; onOpen?: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: lead.id });
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   const isVapi = lead.source?.toLowerCase().includes("vapi");
+  const stale = isStale(lead);
 
   return (
     <div
@@ -158,14 +229,21 @@ function LeadCard({ lead, dragging = false }: { lead: Lead; dragging?: boolean }
       style={style}
       {...listeners}
       {...attributes}
+      onClick={() => onOpen?.(lead.id)}
       className={cn(
         "group rounded-lg border bg-background p-3 cursor-grab active:cursor-grabbing select-none transition-shadow",
         "hover:shadow-md hover:border-border/80",
+        stale && "border-status-lost/40 ring-1 ring-status-lost/20",
         (isDragging || dragging) && "opacity-60 shadow-lg ring-1 ring-primary/30"
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="font-medium text-sm truncate">{lead.full_name}</div>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {stale && (
+            <span title={`No movement in ${STALE_HOURS}h+`} className="shrink-0 h-1.5 w-1.5 rounded-full bg-status-lost" aria-label="Stale" />
+          )}
+          <div className="font-medium text-sm truncate">{lead.full_name}</div>
+        </div>
         {isVapi && (
           <span title="From Vapi call" className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/15 text-primary px-1.5 py-0.5 text-[10px] font-medium">
             <Radio className="h-2.5 w-2.5" /> Vapi
