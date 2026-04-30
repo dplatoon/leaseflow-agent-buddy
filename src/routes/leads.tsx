@@ -230,6 +230,16 @@ function LeadsPage() {
               >
                 <MessageSquare className="h-4 w-4" /> Send message
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={bulkBusy}
+                onClick={() => setRetryOpen(true)}
+                className="gap-2"
+                title="Re-send the last failed message for each selected lead"
+              >
+                <RefreshCw className="h-4 w-4" /> Retry failed
+              </Button>
               <Select onValueChange={(v) => bulkUpdateStatus(v as Status)}>
                 <SelectTrigger className="w-44 bg-surface" disabled={bulkBusy}>
                   <SelectValue placeholder="Set status…" />
