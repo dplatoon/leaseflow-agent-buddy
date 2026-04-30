@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { getRequestHost, getRequestHeader } from "@tanstack/react-start/server";
+import { getRequestHost } from "@tanstack/react-start/server";
 
 export const sendWebhookTest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -26,9 +26,9 @@ export const sendWebhookTest = createServerFn({ method: "POST" })
     if (!agent) throw new Error("Agent not found");
 
     const host = getRequestHost();
-    const proto =
-      getRequestHeader("x-forwarded-proto") ??
-      (host?.includes("localhost") ? "http" : "https");
+    // Always derive scheme from the host — never trust the forwarded-proto
+    // header, which is client-controllable through proxies.
+    const proto = host?.includes("localhost") ? "http" : "https";
     const url = `${proto}://${host}/api/public/vapi-webhook`;
 
     const sample = {

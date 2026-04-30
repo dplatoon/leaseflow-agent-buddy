@@ -31,6 +31,23 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // Baseline security headers expressible via <meta>. X-Frame-Options is
+      // covered by CSP frame-ancestors; X-Content-Type-Options can only be
+      // set as a real response header so it's enforced at the API layer.
+      {
+        httpEquiv: "Content-Security-Policy",
+        content:
+          "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline'; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "font-src 'self' https://fonts.gstatic.com data:; " +
+          "img-src 'self' data: https:; " +
+          "connect-src 'self' https: wss:; " +
+          "frame-ancestors 'none'; " +
+          "base-uri 'self'; " +
+          "form-action 'self'",
+      },
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
       { title: "LeaseFlow — Rental CRM for Bangladesh agents" },
       { name: "description", content: "Capture, manage and follow up on rental leads. Auto-imports leads from your Vapi AI voice assistant." },
       { property: "og:title", content: "LeaseFlow — Rental CRM for Bangladesh agents" },
