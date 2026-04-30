@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      agents: {
+        Row: {
+          agent_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string
+          webhook_secret: string
+        }
+        Insert: {
+          agent_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+          webhook_secret?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+          webhook_secret?: string
+        }
+        Relationships: []
+      }
       email_resend_attempts: {
         Row: {
           created_at: string
