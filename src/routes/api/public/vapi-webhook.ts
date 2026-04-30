@@ -53,6 +53,7 @@ const DUMMY_SECRET = `whsec_${"0".repeat(64)}`;
 type LogStage =
   | "received"
   | "unauthorized"
+  | "rate_limited"
   | "misconfigured"
   | "unsupported_media_type"
   | "payload_too_large"
@@ -85,6 +86,15 @@ function log(
 }
 
 function jsonResponse(status: number, body: Record<string, unknown>, requestId: string) {
+  return jsonResponseWithHeaders(status, body, requestId);
+}
+
+function jsonResponseWithHeaders(
+  status: number,
+  body: Record<string, unknown>,
+  requestId: string,
+  extraHeaders: Record<string, string> = {},
+) {
   return new Response(JSON.stringify({ request_id: requestId, ...body }), {
     status,
     headers: {
@@ -94,6 +104,7 @@ function jsonResponse(status: number, body: Record<string, unknown>, requestId: 
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
       "Cache-Control": "no-store",
+      ...extraHeaders,
     },
   });
 }
@@ -111,6 +122,8 @@ function statusForStage(stage: LogStage): WebhookStatus {
       return "inserted";
     case "unauthorized":
       return "unauthorized";
+    case "rate_limited":
+      return "unauthorized";
     case "invalid_body":
     case "invalid_json":
     case "invalid_payload":
@@ -124,6 +137,86 @@ function statusForStage(stage: LogStage): WebhookStatus {
       return "failed";
     default:
       return "authorized";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Per-IP rate limiting (sliding window).
+//
+// NOTE: This backend has no shared rate-limit primitives (Redis / edge KV).
+// The implementation below is an ad-hoc Postgres sliding window. It is good
+// enough to deflect basic abuse and brute-force attempts on the public
+// webhook, but it is NOT a precise traffic shaper:
+//   - Requests can race within the window before the count is observed.
+//   - Every request hits the DB twice (count + insert) which adds latency.
+//   - "127.0.0.1" / unknown IPs are bucketed together.
+// Replace with a proper rate-limiter (Cloudflare Rate Limiting, Upstash, etc.)
+// when that infra is available.
+// ---------------------------------------------------------------------------
+const RL_WINDOW_MS = 60 * 1000; // 1 minute
+const RL_MAX_PER_WINDOW = 60; // 60 req/min per IP — generous for a webhook
+const RL_PRUNE_PROBABILITY = 0.02; // ~2% of requests trigger a cleanup
+
+async function checkIpRateLimit(ip: string | null): Promise<{
+  allowed: boolean;
+  used: number;
+  limit: number;
+  retryAfterMs: number;
+}> {
+  const bucket = ip || "unknown";
+  const since = new Date(Date.now() - RL_WINDOW_MS).toISOString();
+
+  const { count } = await supabaseAdmin
+    .from("webhook_ip_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("ip", bucket)
+    .gte("created_at", since);
+
+  const used = count ?? 0;
+  if (used >= RL_MAX_PER_WINDOW) {
+    const { data: oldest } = await supabaseAdmin
+      .from("webhook_ip_attempts")
+      .select("created_at")
+      .eq("ip", bucket)
+      .gte("created_at", since)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const retryAtMs = oldest
+      ? new Date(oldest.created_at).getTime() + RL_WINDOW_MS - Date.now()
+      : RL_WINDOW_MS;
+    return {
+      allowed: false,
+      used,
+      limit: RL_MAX_PER_WINDOW,
+      retryAfterMs: Math.max(1000, retryAtMs),
+    };
+  }
+  return {
+    allowed: true,
+    used,
+    limit: RL_MAX_PER_WINDOW,
+    retryAfterMs: 0,
+  };
+}
+
+async function recordIpAttempt(
+  ip: string | null,
+  agentId: string | null,
+  outcome: WebhookStatus | "rate_limited",
+) {
+  try {
+    await supabaseAdmin.from("webhook_ip_attempts").insert({
+      ip: ip || "unknown",
+      agent_id: agentId,
+      outcome,
+    });
+    if (Math.random() < RL_PRUNE_PROBABILITY) {
+      // Opportunistic cleanup; ignore errors.
+      void supabaseAdmin.rpc("prune_webhook_ip_attempts").then(() => undefined);
+    }
+  } catch {
+    // Never block the webhook on rate-limit bookkeeping failures.
   }
 }
 
@@ -205,18 +298,38 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
           content_length: contentLengthHeader,
         });
 
+        // Per-IP rate limit BEFORE any expensive work (auth, JSON parse, DB
+        // lookups). Bookkeeping happens after we send the response.
+        let rl: Awaited<ReturnType<typeof checkIpRateLimit>>;
+        try {
+          rl = await checkIpRateLimit(ip);
+        } catch {
+          // Fail open if the rate-limit store itself errors so legitimate
+          // traffic isn't blocked by an internal problem.
+          rl = { allowed: true, used: 0, limit: RL_MAX_PER_WINDOW, retryAfterMs: 0 };
+        }
+
         const finish = (
           status: number,
           body: Record<string, unknown>,
           level: "info" | "warn" | "error",
           stage: LogStage,
           extra: Record<string, unknown> = {},
+          extraHeaders: Record<string, string> = {},
         ) => {
           log(level, requestId, stage, {
             status,
             duration_ms: Date.now() - startedAt,
             ...extra,
           });
+          // Record the per-IP attempt for the sliding window.
+          void recordIpAttempt(
+            ip,
+            (extra.agent_id as string | undefined) ?? null,
+            stage === "rate_limited"
+              ? "rate_limited"
+              : statusForStage(stage),
+          );
           // Fire-and-forget DB log; never block the HTTP response.
           void recordWebhookLog({
             request_id: requestId,
@@ -246,8 +359,20 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
               db_code: extra.code ?? null,
             },
           });
-          return jsonResponse(status, body, requestId);
+          return jsonResponseWithHeaders(status, body, requestId, extraHeaders);
         };
+
+        if (!rl.allowed) {
+          const retryAfterSec = Math.max(1, Math.ceil(rl.retryAfterMs / 1000));
+          return finish(
+            429,
+            { error: "Too many requests" },
+            "warn",
+            "rate_limited",
+            { ip, used: rl.used, limit: rl.limit, retry_after: retryAfterSec },
+            { "Retry-After": String(retryAfterSec) },
+          );
+        }
 
         const expected = process.env.VAPI_WEBHOOK_SECRET;
         const provided = request.headers.get("x-vapi-secret");

@@ -154,6 +154,30 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_ip_attempts: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          id: string
+          ip: string
+          outcome: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          id?: string
+          ip: string
+          outcome: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          id?: string
+          ip?: string
+          outcome?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           agent_id: string | null
@@ -213,7 +237,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      prune_webhook_ip_attempts: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
