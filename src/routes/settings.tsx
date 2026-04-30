@@ -605,6 +605,8 @@ function SettingsPage() {
           )}
         </section>
 
+        <ReminderRulesSection />
+
         {/* Danger */}
         <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 space-y-3">
           <h2 className="font-medium text-destructive">Danger zone</h2>
