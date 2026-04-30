@@ -25,6 +25,9 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, MessageSquare, Trash2, X } from "lucide-react";
 import LeadDetailSheet from "@/components/leaseflow/LeadDetailSheet";
 import SendMessageDialog from "@/components/leaseflow/SendMessageDialog";
+import RetryFailedMessagesDialog from "@/components/leaseflow/RetryFailedMessagesDialog";
+import ExportFailuresButton from "@/components/leaseflow/ExportFailuresButton";
+import { RefreshCw } from "lucide-react";
 import { handleStatusChange } from "@/lib/reminders";
 import { useReminderRules } from "@/hooks/useReminderRules";
 
@@ -61,6 +64,7 @@ function LeadsPage() {
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
+  const [retryOpen, setRetryOpen] = useState(false);
 
   // Reset selection when the visible page changes
   useEffect(() => { setSelected(new Set()); }, [page, pageSize, statusFilter, search]);
@@ -184,6 +188,11 @@ function LeadsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <ExportFailuresButton
+              leadIds={leads.map((l) => l.id)}
+              label="Export failures"
+              title="Download failed messages for the leads on this page (with optional date range)"
+            />
             <Select
               value={statusFilter}
               onValueChange={(v) => navigate({ search: (prev: LeadsSearch) => ({ ...prev, status: v, page: 1 }) })}
