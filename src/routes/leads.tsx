@@ -31,6 +31,13 @@ function LeadsPage() {
 
   useEffect(() => { load(); }, [user]);
 
+  useEffect(() => {
+    const onCreated = () => load();
+    window.addEventListener("leaseflow:lead-created", onCreated);
+    return () => window.removeEventListener("leaseflow:lead-created", onCreated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return leads.filter((l) => {
