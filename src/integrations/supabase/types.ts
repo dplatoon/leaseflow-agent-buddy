@@ -68,6 +68,56 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_reminders: {
+        Row: {
+          auto_created: boolean
+          completed_at: string | null
+          created_at: string
+          due_at: string
+          id: string
+          kind: string
+          lead_id: string
+          note: string | null
+          status: string
+          triggered_by_status: string | null
+          user_id: string
+        }
+        Insert: {
+          auto_created?: boolean
+          completed_at?: string | null
+          created_at?: string
+          due_at: string
+          id?: string
+          kind?: string
+          lead_id: string
+          note?: string | null
+          status?: string
+          triggered_by_status?: string | null
+          user_id: string
+        }
+        Update: {
+          auto_created?: boolean
+          completed_at?: string | null
+          created_at?: string
+          due_at?: string
+          id?: string
+          kind?: string
+          lead_id?: string
+          note?: string | null
+          status?: string
+          triggered_by_status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_reminders_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           budget: string | null
@@ -151,6 +201,42 @@ export type Database = {
           is_subscribed?: boolean
           stripe_customer_id?: string | null
           webhook_secret?: string
+        }
+        Relationships: []
+      }
+      reminder_rules: {
+        Row: {
+          closed_hours: number | null
+          contacted_hours: number | null
+          created_at: string
+          enabled: boolean
+          lost_hours: number | null
+          new_hours: number | null
+          scheduled_hours: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          closed_hours?: number | null
+          contacted_hours?: number | null
+          created_at?: string
+          enabled?: boolean
+          lost_hours?: number | null
+          new_hours?: number | null
+          scheduled_hours?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          closed_hours?: number | null
+          contacted_hours?: number | null
+          created_at?: string
+          enabled?: boolean
+          lost_hours?: number | null
+          new_hours?: number | null
+          scheduled_hours?: number | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

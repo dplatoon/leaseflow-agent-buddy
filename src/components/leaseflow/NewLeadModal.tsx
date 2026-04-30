@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { fetchRules, createAutoReminder } from "@/lib/reminders";
 
 const sourcePills = SOURCES.filter((s) => s !== "Manual");
 
@@ -42,7 +43,7 @@ export default function NewLeadModal({
     e.preventDefault();
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase.from("leads").insert({
+    const { data: inserted, error } = await supabase.from("leads").insert({
       user_id: user.id,
       full_name: fullName.trim(),
       phone: phone.trim() || null,
@@ -52,9 +53,23 @@ export default function NewLeadModal({
       urgency: urgency || null,
       source: source || "Manual",
       notes: notes.trim() || null,
-    });
+    }).select("id").single();
     setSaving(false);
     if (error) return toast.error(error.message);
+    // Auto-create the "New" reminder if a rule is configured
+    try {
+      if (inserted?.id) {
+        const rules = await fetchRules(user.id);
+        await createAutoReminder({
+          userId: user.id,
+          leadId: inserted.id,
+          status: "New",
+          rules,
+        });
+      }
+    } catch {
+      // Reminder failure shouldn't block lead creation
+    }
     toast.success(`Lead saved — ${fullName}`);
     reset();
     onOpenChange(false);
