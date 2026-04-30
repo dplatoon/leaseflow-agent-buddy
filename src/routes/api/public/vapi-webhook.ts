@@ -298,18 +298,38 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
           content_length: contentLengthHeader,
         });
 
+        // Per-IP rate limit BEFORE any expensive work (auth, JSON parse, DB
+        // lookups). Bookkeeping happens after we send the response.
+        let rl: Awaited<ReturnType<typeof checkIpRateLimit>>;
+        try {
+          rl = await checkIpRateLimit(ip);
+        } catch {
+          // Fail open if the rate-limit store itself errors so legitimate
+          // traffic isn't blocked by an internal problem.
+          rl = { allowed: true, used: 0, limit: RL_MAX_PER_WINDOW, retryAfterMs: 0 };
+        }
+
         const finish = (
           status: number,
           body: Record<string, unknown>,
           level: "info" | "warn" | "error",
           stage: LogStage,
           extra: Record<string, unknown> = {},
+          extraHeaders: Record<string, string> = {},
         ) => {
           log(level, requestId, stage, {
             status,
             duration_ms: Date.now() - startedAt,
             ...extra,
           });
+          // Record the per-IP attempt for the sliding window.
+          void recordIpAttempt(
+            ip,
+            (extra.agent_id as string | undefined) ?? null,
+            stage === "rate_limited"
+              ? "rate_limited"
+              : statusForStage(stage),
+          );
           // Fire-and-forget DB log; never block the HTTP response.
           void recordWebhookLog({
             request_id: requestId,
@@ -339,8 +359,20 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
               db_code: extra.code ?? null,
             },
           });
-          return jsonResponse(status, body, requestId);
+          return jsonResponseWithHeaders(status, body, requestId, extraHeaders);
         };
+
+        if (!rl.allowed) {
+          const retryAfterSec = Math.max(1, Math.ceil(rl.retryAfterMs / 1000));
+          return finish(
+            429,
+            { error: "Too many requests" },
+            "warn",
+            "rate_limited",
+            { ip, used: rl.used, limit: rl.limit, retry_after: retryAfterSec },
+            { "Retry-After": String(retryAfterSec) },
+          );
+        }
 
         const expected = process.env.VAPI_WEBHOOK_SECRET;
         const provided = request.headers.get("x-vapi-secret");
