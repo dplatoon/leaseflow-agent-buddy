@@ -97,6 +97,60 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_logs: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          http_status: number
+          id: string
+          ip: string | null
+          lead_id: string | null
+          payload_summary: Json | null
+          request_id: string
+          source: string
+          stage: string
+          status: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          http_status: number
+          id?: string
+          ip?: string | null
+          lead_id?: string | null
+          payload_summary?: Json | null
+          request_id: string
+          source?: string
+          stage: string
+          status: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          http_status?: number
+          id?: string
+          ip?: string | null
+          lead_id?: string | null
+          payload_summary?: Json | null
+          request_id?: string
+          source?: string
+          stage?: string
+          status?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
