@@ -9,7 +9,7 @@ import { BUDGETS, PROPERTY_TYPES, SOURCES, STATUSES, URGENCIES, statusClass, typ
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
-import { Phone, Trash2, Clock, Radio, ExternalLink, MessageSquare } from "lucide-react";
+import { Phone, Trash2, Clock, Radio, ExternalLink, MessageSquare, AlertTriangle, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import LeadRemindersSection from "@/components/leaseflow/LeadRemindersSection";
 import LeadCallsSection from "@/components/leaseflow/LeadCallsSection";
@@ -17,6 +17,8 @@ import SendMessageDialog from "@/components/leaseflow/SendMessageDialog";
 import { handleStatusChange } from "@/lib/reminders";
 import { useReminderRules } from "@/hooks/useReminderRules";
 import { useAuth } from "@/hooks/useAuth";
+import { fetchCallsForLead, type CallLog } from "@/lib/calls";
+import { parseFailureReason } from "@/lib/templates";
 
 export default function LeadDetailSheet({
   lead,
@@ -33,12 +35,37 @@ export default function LeadDetailSheet({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
+  const [lastFailure, setLastFailure] = useState<CallLog | null>(null);
   const { user } = useAuth();
   const { rules } = useReminderRules();
 
   useEffect(() => {
     setDraft(lead);
   }, [lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track most recent failed message attempt for the resend banner.
+  useEffect(() => {
+    if (!open || !lead) { setLastFailure(null); return; }
+    let cancel = false;
+    const refresh = async () => {
+      try {
+        const calls = await fetchCallsForLead(lead.id);
+        if (cancel) return;
+        const lastSentAt = calls.find((c) => c.outcome === "message_sent")?.created_at;
+        const lastFail = calls.find(
+          (c) => c.outcome === "message_failed" && (!lastSentAt || c.created_at > lastSentAt)
+        );
+        setLastFailure(lastFail ?? null);
+      } catch { /* ignore */ }
+    };
+    void refresh();
+    const onChanged = () => void refresh();
+    window.addEventListener("leaseflow:calls-changed", onChanged);
+    return () => {
+      cancel = true;
+      window.removeEventListener("leaseflow:calls-changed", onChanged);
+    };
+  }, [open, lead?.id]);
 
   if (!draft) return null;
 
@@ -136,6 +163,28 @@ export default function LeadDetailSheet({
             </div>
           )}
 
+          {lastFailure && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 flex items-start gap-3">
+              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0 text-xs">
+                <div className="font-medium text-destructive">Last message failed</div>
+                <div className="text-muted-foreground mt-0.5">
+                  Reason: <span className="text-foreground">{parseFailureReason(lastFailure.notes)}</span>
+                  <span className="mx-1">·</span>
+                  {format(new Date(lastFailure.created_at), "MMM d, h:mm a")} ({formatDistanceToNow(new Date(lastFailure.created_at), { addSuffix: true })})
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] gap-1 border-destructive/40 text-destructive hover:bg-destructive/15 hover:text-destructive shrink-0"
+                onClick={() => setSendOpen(true)}
+              >
+                <RotateCw className="h-3 w-3" /> Resend
+              </Button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="d-name">Full name</Label>
@@ -223,7 +272,11 @@ export default function LeadDetailSheet({
 
           {user && (
             <div className="pt-2 border-t border-border">
-              <LeadCallsSection leadId={draft.id} userId={user.id} />
+              <LeadCallsSection
+                leadId={draft.id}
+                userId={user.id}
+                onRetryMessage={() => setSendOpen(true)}
+              />
             </div>
           )}
 
