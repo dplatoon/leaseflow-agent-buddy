@@ -113,7 +113,11 @@ export default function AppShell({
           ) : (
             <div className="flex-1" />
           )}
-          <Button onClick={() => setLeadOpen(true)} className="gap-2">
+          <Button
+            onClick={() => setLeadOpen(true)}
+            className="gap-2"
+            disabled={gated && !sub.loading && !sub.hasAccess}
+          >
             <Plus className="h-4 w-4" /> New Lead
           </Button>
         </header>
