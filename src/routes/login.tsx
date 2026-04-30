@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import logoMark from "@/assets/logo-mark.png";
+import GoogleAuthButton from "@/components/leaseflow/GoogleAuthButton";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Log in — LeaseFlow" }] }),
@@ -51,13 +52,26 @@ function LoginPage() {
         <div className="rounded-xl border border-border bg-surface p-6 md:p-8">
           <h1 className="text-2xl font-semibold tracking-tight">Log in</h1>
           <p className="text-sm text-muted-foreground mt-1">Welcome back to your pipeline.</p>
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          <div className="mt-6">
+            <GoogleAuthButton label="Log in with Google" />
+          </div>
+          <div className="mt-6 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            OR
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <form onSubmit={onSubmit} className="mt-4 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pw">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="pw">Password</Label>
+                <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <Input id="pw" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
