@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Copy, Check } from "lucide-react";
+import ConnectedAccounts from "@/components/leaseflow/ConnectedAccounts";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — LeaseFlow" }] }),
@@ -109,6 +110,8 @@ function SettingsPage() {
             </div>
           )}
         </section>
+
+        <ConnectedAccounts />
 
         {/* Vapi */}
         <section className="rounded-xl border border-border bg-surface p-5 space-y-4">
