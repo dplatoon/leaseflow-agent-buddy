@@ -1,7 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "@/components/leaseflow/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/leads")({
 
 function LeadsPage() {
   const { user } = useAuth();
-  const navigate = useNavigate({ from: "/leads" });
+  const navigate = Route.useNavigate();
   const { page, pageSize, status: statusFilter, q: search } = Route.useSearch();
 
   const [leads, setLeads] = useState<Lead[]>([]);
