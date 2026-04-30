@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import NewLeadModal from "./NewLeadModal";
 import { useSubscription } from "@/hooks/useSubscription";
 import { TrialBanner, TrialExpired } from "./TrialGate";
+import logoMark from "@/assets/logo-mark.png";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -50,7 +51,7 @@ export default function AppShell({
   const Sidebar = (
     <aside className="flex h-full w-64 flex-col border-r border-border bg-sidebar">
       <div className="px-5 py-5 flex items-center gap-2">
-        <div className="h-8 w-8 rounded-lg bg-primary grid place-items-center text-primary-foreground font-bold">L</div>
+        <img src={logoMark} alt="LeaseFlow" width={32} height={32} className="h-8 w-8" loading="lazy" />
         <span className="font-semibold tracking-tight">LeaseFlow</span>
       </div>
       <nav className="flex-1 px-3 space-y-1">

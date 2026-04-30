@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Phone, Sparkles, KanbanSquare } from "lucide-react";
+import logoMark from "@/assets/logo-mark.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -26,7 +27,7 @@ function Landing() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between px-6 py-5 md:px-12">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-primary grid place-items-center text-primary-foreground font-bold">L</div>
+          <img src={logoMark} alt="LeaseFlow" width={32} height={32} className="h-8 w-8" />
           <span className="font-semibold text-lg tracking-tight">LeaseFlow</span>
         </div>
         <div className="flex items-center gap-3">
