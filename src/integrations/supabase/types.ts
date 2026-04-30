@@ -97,6 +97,7 @@ export type Database = {
           id: string
           is_subscribed: boolean
           stripe_customer_id: string | null
+          webhook_secret: string
         }
         Insert: {
           agent_id?: string
@@ -106,6 +107,7 @@ export type Database = {
           id: string
           is_subscribed?: boolean
           stripe_customer_id?: string | null
+          webhook_secret?: string
         }
         Update: {
           agent_id?: string
@@ -115,6 +117,7 @@ export type Database = {
           id?: string
           is_subscribed?: boolean
           stripe_customer_id?: string | null
+          webhook_secret?: string
         }
         Relationships: []
       }
