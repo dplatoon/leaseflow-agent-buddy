@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import NewLeadModal from "./NewLeadModal";
 import logoMark from "@/assets/logo-mark.png";
 import { supabase } from "@/integrations/supabase/client";
+import { useDueReminderToasts } from "@/hooks/useDueReminderToasts";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -35,6 +36,9 @@ export default function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [leadOpen, setLeadOpen] = useState(false);
   const [dueCount, setDueCount] = useState(0);
+
+  // Surface in-app toasts when reminders become due.
+  useDueReminderToasts();
 
   // Poll due-reminder count for the sidebar badge
   useEffect(() => {
