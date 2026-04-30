@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Link2, Link2Off, Mail } from "lucide-react";
 import type { UserIdentity } from "@supabase/supabase-js";
 
-const PROVIDER_META: Record<string, { label: string; icon: JSX.Element }> = {
+const PROVIDER_META: Record<string, { label: string; icon: ReactNode }> = {
   google: {
     label: "Google",
     icon: (
