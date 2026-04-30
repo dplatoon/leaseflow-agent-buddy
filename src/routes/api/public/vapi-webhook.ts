@@ -327,7 +327,10 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
         const p = parsed.data;
 
         const { data: profile, error: pErr } = await supabaseAdmin
-          .from("profiles").select("id").eq("agent_id", p.agent_id).maybeSingle();
+          .from("profiles")
+          .select("id, webhook_secret")
+          .eq("agent_id", p.agent_id)
+          .maybeSingle();
         if (pErr) {
           return finish(
             500,
@@ -345,6 +348,18 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
             "unknown_agent",
             { agent_id: p.agent_id },
           );
+        }
+
+        // Per-user secret takes precedence; the global secret remains a
+        // workspace-wide fallback so existing integrations keep working.
+        const userSecret = (profile as { webhook_secret?: string | null }).webhook_secret;
+        const secretMatchesUser = userSecret ? safeEqual(provided, userSecret) : false;
+        const secretMatchesGlobal = safeEqual(provided, expected);
+        if (!secretMatchesUser && !secretMatchesGlobal) {
+          return finish(401, { error: "Unauthorized" }, "warn", "unauthorized", {
+            agent_id: p.agent_id,
+            reason: "secret_mismatch_for_agent",
+          });
         }
 
         const { data: inserted, error: iErr } = await supabaseAdmin.from("leads").insert({
