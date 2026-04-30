@@ -11,6 +11,10 @@ import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { Phone, Trash2, Clock, Radio, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import LeadRemindersSection from "@/components/leaseflow/LeadRemindersSection";
+import { handleStatusChange } from "@/lib/reminders";
+import { useReminderRules } from "@/hooks/useReminderRules";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function LeadDetailSheet({
   lead,
@@ -26,6 +30,8 @@ export default function LeadDetailSheet({
   const [draft, setDraft] = useState<Lead | null>(lead);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { user } = useAuth();
+  const { rules } = useReminderRules();
 
   useEffect(() => {
     setDraft(lead);
@@ -42,6 +48,7 @@ export default function LeadDetailSheet({
   const save = async () => {
     if (!draft) return;
     setSaving(true);
+    const statusChanged = lead ? lead.status !== draft.status : false;
     const { error } = await supabase
       .from("leads")
       .update({
@@ -58,6 +65,11 @@ export default function LeadDetailSheet({
       .eq("id", draft.id);
     setSaving(false);
     if (error) return toast.error(error.message);
+    if (statusChanged && user && rules) {
+      try {
+        await handleStatusChange({ userId: user.id, leadId: draft.id, newStatus: draft.status as Status, rules });
+      } catch {}
+    }
     toast.success("Lead updated");
     onChanged?.();
     onOpenChange(false);
@@ -187,6 +199,12 @@ export default function LeadDetailSheet({
               className="font-mono text-xs leading-relaxed"
             />
           </div>
+
+          {user && (
+            <div className="pt-2 border-t border-border">
+              <LeadRemindersSection leadId={draft.id} userId={user.id} />
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
             <Button type="button" variant="ghost" size="sm" onClick={remove} disabled={deleting} className="text-destructive hover:text-destructive gap-2">
