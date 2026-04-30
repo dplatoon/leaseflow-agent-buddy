@@ -33,11 +33,15 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "LeaseFlow — Rental CRM for Bangladesh agents" },
       { name: "description", content: "Capture, manage and follow up on rental leads. Auto-imports leads from your Vapi AI voice assistant." },
-      { property: "og:title", content: "LeaseFlow — Rental CRM" },
-      { property: "og:description", content: "Real-estate CRM with AI voice lead capture." },
+      { property: "og:title", content: "LeaseFlow — Rental CRM for Bangladesh agents" },
+      { property: "og:description", content: "Capture, manage and follow up on rental leads. Auto-imports leads from your Vapi AI voice assistant." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "LeaseFlow — Rental CRM for Bangladesh agents" },
+      { name: "twitter:description", content: "Capture, manage and follow up on rental leads. Auto-imports leads from your Vapi AI voice assistant." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/767b0f69-e00f-4d9d-9e33-120ac5758c02/id-preview-1acd770e--ceaf10a2-04b1-4e82-b034-c5109e89fe01.lovable.app-1777523888366.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/767b0f69-e00f-4d9d-9e33-120ac5758c02/id-preview-1acd770e--ceaf10a2-04b1-4e82-b034-c5109e89fe01.lovable.app-1777523888366.png" },
     ],
     links: [
       {
