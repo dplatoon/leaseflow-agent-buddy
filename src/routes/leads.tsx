@@ -156,7 +156,7 @@ function LeadsPage() {
   };
 
   return (
-    <AppShell gated showSearch searchValue={searchInput} onSearchChange={setSearchInput}>
+    <AppShell showSearch searchValue={searchInput} onSearchChange={setSearchInput}>
       <div className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
