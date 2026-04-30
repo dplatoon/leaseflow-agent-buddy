@@ -22,6 +22,8 @@ const leadsSearchSchema = z.object({
   q: fallback(z.string(), "").default(""),
 });
 
+type LeadsSearch = z.infer<typeof leadsSearchSchema>;
+
 export const Route = createFileRoute("/leads")({
   head: () => ({ meta: [{ title: "Leads — LeaseFlow" }] }),
   validateSearch: zodValidator(leadsSearchSchema),
@@ -45,7 +47,7 @@ function LeadsPage() {
   useEffect(() => {
     if (searchInput === search) return;
     const t = setTimeout(() => {
-      navigate({ search: (prev) => ({ ...prev, q: searchInput, page: 1 }) });
+      navigate({ search: (prev: LeadsSearch) => ({ ...prev, q: searchInput, page: 1 }) });
     }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,7 +113,7 @@ function LeadsPage() {
           <div className="flex items-center gap-2">
             <Select
               value={statusFilter}
-              onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, status: v, page: 1 }) })}
+              onValueChange={(v) => navigate({ search: (prev: LeadsSearch) => ({ ...prev, status: v, page: 1 }) })}
             >
               <SelectTrigger className="w-40 bg-surface"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -121,7 +123,7 @@ function LeadsPage() {
             </Select>
             <Select
               value={String(pageSize)}
-              onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, pageSize: Number(v), page: 1 }) })}
+              onValueChange={(v) => navigate({ search: (prev: LeadsSearch) => ({ ...prev, pageSize: Number(v), page: 1 }) })}
             >
               <SelectTrigger className="w-28 bg-surface"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -185,7 +187,7 @@ function LeadsPage() {
                 variant="outline"
                 size="sm"
                 disabled={page <= 1 || loading}
-                onClick={() => navigate({ search: (prev) => ({ ...prev, page: Math.max(1, page - 1) }) })}
+                onClick={() => navigate({ search: (prev: LeadsSearch) => ({ ...prev, page: Math.max(1, page - 1) }) })}
               >
                 <ChevronLeft className="h-4 w-4" /> Previous
               </Button>
@@ -193,7 +195,7 @@ function LeadsPage() {
                 variant="outline"
                 size="sm"
                 disabled={page >= totalPages || loading}
-                onClick={() => navigate({ search: (prev) => ({ ...prev, page: page + 1 }) })}
+                onClick={() => navigate({ search: (prev: LeadsSearch) => ({ ...prev, page: page + 1 }) })}
               >
                 Next <ChevronRight className="h-4 w-4" />
               </Button>
