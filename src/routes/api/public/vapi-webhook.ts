@@ -84,6 +84,92 @@ function jsonResponse(status: number, body: Record<string, unknown>, requestId: 
   });
 }
 
+type WebhookStatus =
+  | "authorized"
+  | "unauthorized"
+  | "invalid"
+  | "inserted"
+  | "failed";
+
+function statusForStage(stage: LogStage): WebhookStatus {
+  switch (stage) {
+    case "success":
+      return "inserted";
+    case "unauthorized":
+      return "unauthorized";
+    case "invalid_body":
+    case "invalid_json":
+    case "invalid_payload":
+    case "unsupported_media_type":
+    case "payload_too_large":
+      return "invalid";
+    case "misconfigured":
+    case "profile_lookup_failed":
+    case "unknown_agent":
+    case "insert_failed":
+      return "failed";
+    default:
+      return "authorized";
+  }
+}
+
+async function recordWebhookLog(entry: {
+  request_id: string;
+  status: WebhookStatus;
+  stage: LogStage;
+  http_status: number;
+  agent_id?: string | null;
+  user_id?: string | null;
+  lead_id?: string | null;
+  ip?: string | null;
+  user_agent?: string | null;
+  duration_ms: number;
+  error_message?: string | null;
+  payload_summary?: Record<string, unknown> | null;
+}) {
+  try {
+    const { error } = await supabaseAdmin.from("webhook_logs").insert({
+      request_id: entry.request_id,
+      source: "vapi",
+      status: entry.status,
+      stage: entry.stage,
+      http_status: entry.http_status,
+      agent_id: entry.agent_id ?? null,
+      user_id: entry.user_id ?? null,
+      lead_id: entry.lead_id ?? null,
+      ip: entry.ip ?? null,
+      user_agent: entry.user_agent ?? null,
+      duration_ms: entry.duration_ms,
+      error_message: entry.error_message ?? null,
+      payload_summary: entry.payload_summary ?? null,
+    } as never);
+    if (error) {
+      console.error(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: "error",
+          scope: "vapi-webhook",
+          request_id: entry.request_id,
+          stage: "log_persist_failed",
+          db_error: error.message,
+          code: error.code,
+        }),
+      );
+    }
+  } catch (e) {
+    console.error(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        level: "error",
+        scope: "vapi-webhook",
+        request_id: entry.request_id,
+        stage: "log_persist_threw",
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+  }
+}
+
 export const Route = createFileRoute("/api/public/vapi-webhook")({
   server: {
     handlers: {
@@ -116,6 +202,35 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
             status,
             duration_ms: Date.now() - startedAt,
             ...extra,
+          });
+          // Fire-and-forget DB log; never block the HTTP response.
+          void recordWebhookLog({
+            request_id: requestId,
+            status: statusForStage(stage),
+            stage,
+            http_status: status,
+            agent_id:
+              (extra.agent_id as string | undefined) ?? null,
+            user_id: (extra.user_id as string | undefined) ?? null,
+            lead_id: (extra.lead_id as string | undefined) ?? null,
+            ip,
+            user_agent: userAgent,
+            duration_ms: Date.now() - startedAt,
+            error_message:
+              level === "error" || level === "warn"
+                ? (body.error as string | undefined) ?? null
+                : null,
+            payload_summary: {
+              has_phone: extra.has_phone ?? null,
+              has_name: extra.has_name ?? null,
+              content_type: extra.content_type ?? null,
+              content_length: extra.content_length ?? null,
+              body_bytes: extra.body_bytes ?? null,
+              reason: extra.reason ?? null,
+              field_errors: extra.field_errors ?? null,
+              form_errors: extra.form_errors ?? null,
+              db_code: extra.code ?? null,
+            },
           });
           return jsonResponse(status, body, requestId);
         };
