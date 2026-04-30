@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import ConnectedAccounts from "@/components/leaseflow/ConnectedAccounts";
 import ReminderRulesSection from "@/components/leaseflow/ReminderRulesSection";
+import MessageTemplatesSection from "@/components/leaseflow/MessageTemplatesSection";
 import {
   listAgents,
   createAgent,
@@ -606,6 +607,8 @@ function SettingsPage() {
         </section>
 
         <ReminderRulesSection />
+
+        <MessageTemplatesSection />
 
         {/* Danger */}
         <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 space-y-3">
