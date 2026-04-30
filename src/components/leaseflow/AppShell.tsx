@@ -40,6 +40,7 @@ export default function AppShell({
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
+    else if (!loading && user && !user.email_confirmed_at) navigate({ to: "/verify-email" });
   }, [user, loading, navigate]);
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
