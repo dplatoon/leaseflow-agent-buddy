@@ -37,6 +37,7 @@ import {
 } from "@/server/agents.functions";
 import { sendWebhookTest } from "@/server/webhook-test.functions";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Link } from "@tanstack/react-router";
@@ -369,6 +370,9 @@ function SettingsPage() {
               {agents.map((a) => {
                 const tr = testResults[a.id];
                 const isEditing = editing[a.id] !== undefined;
+                const missingAgentId = !a.agent_id || a.agent_id.trim() === "";
+                const missingSecret = !a.webhook_secret || a.webhook_secret.trim() === "";
+                const hasCredentialIssue = missingAgentId || missingSecret;
                 return (
                   <li
                     key={a.id}
@@ -449,15 +453,53 @@ function SettingsPage() {
                       </div>
                     </div>
 
+                    {hasCredentialIssue && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Missing webhook credentials</AlertTitle>
+                        <AlertDescription>
+                          {missingAgentId && missingSecret
+                            ? "This assistant has no agent ID or webhook secret. Regenerate the secret and contact support if the agent ID stays empty — the webhook cannot accept calls until both are set."
+                            : missingAgentId
+                              ? "This assistant has no agent ID. The webhook cannot route incoming calls until an agent ID is assigned."
+                              : "This assistant has no webhook secret. Click Regenerate to create one before connecting Vapi."}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
                     {/* Agent ID */}
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Agent ID (send as <code className="font-mono">agent_id</code>)</Label>
                       <div className="flex gap-2">
-                        <Input readOnly value={a.agent_id ?? ""} className="font-mono text-xs h-9" />
-                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => copyText(a.agent_id ?? "", `aid-${a.id}`)}>
+                        <Input
+                          readOnly
+                          value={a.agent_id ?? ""}
+                          placeholder="No agent ID assigned"
+                          aria-invalid={missingAgentId}
+                          className={cn(
+                            "font-mono text-xs h-9",
+                            missingAgentId && "border-destructive focus-visible:ring-destructive",
+                          )}
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          disabled={missingAgentId}
+                          onClick={() => {
+                            if (missingAgentId) {
+                              toast.error("No agent ID to copy");
+                              return;
+                            }
+                            void copyText(a.agent_id, `aid-${a.id}`);
+                          }}
+                        >
                           {copied === `aid-${a.id}` ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
+                      {missingAgentId && (
+                        <p className="text-[11px] text-destructive">Agent ID is missing — incoming webhooks will be rejected.</p>
+                      )}
                     </div>
 
                     {/* Webhook secret */}
@@ -480,20 +522,41 @@ function SettingsPage() {
                         <Input
                           readOnly
                           value={reveal[a.id] ? (a.webhook_secret ?? "") : mask(a.webhook_secret)}
-                          className="font-mono text-xs h-9"
+                          placeholder="No secret generated"
+                          aria-invalid={missingSecret}
+                          className={cn(
+                            "font-mono text-xs h-9",
+                            missingSecret && "border-destructive focus-visible:ring-destructive",
+                          )}
                         />
                         <Button
                           variant="outline"
                           size="icon"
                           className="h-9 w-9 shrink-0"
+                          disabled={missingSecret}
                           onClick={() => setReveal((r) => ({ ...r, [a.id]: !r[a.id] }))}
                         >
                           {reveal[a.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
-                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => copyText(a.webhook_secret ?? "", `sec-${a.id}`)}>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          disabled={missingSecret}
+                          onClick={() => {
+                            if (missingSecret) {
+                              toast.error("No webhook secret to copy");
+                              return;
+                            }
+                            void copyText(a.webhook_secret, `sec-${a.id}`);
+                          }}
+                        >
                           {copied === `sec-${a.id}` ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
+                      {missingSecret && (
+                        <p className="text-[11px] text-destructive">Webhook secret is missing — click Regenerate to create one.</p>
+                      )}
                     </div>
 
                     {/* Test webhook */}
@@ -505,8 +568,15 @@ function SettingsPage() {
                         size="sm"
                         variant="secondary"
                         className="gap-2 shrink-0"
-                        disabled={testing[a.id] || !a.is_active}
-                        onClick={() => handleTest(a)}
+                        disabled={testing[a.id] || !a.is_active || hasCredentialIssue}
+                        title={hasCredentialIssue ? "Fix missing credentials before testing" : undefined}
+                        onClick={() => {
+                          if (hasCredentialIssue) {
+                            toast.error("Fix missing credentials before sending a test webhook");
+                            return;
+                          }
+                          void handleTest(a);
+                        }}
                       >
                         {testing[a.id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         {testing[a.id] ? "Testing…" : "Send test webhook"}
