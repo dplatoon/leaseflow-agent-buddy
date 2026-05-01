@@ -150,8 +150,10 @@ function SettingsPage() {
     void loadEvents();
   }, [loadAgents, loadEvents]);
 
-  const mask = (s: string) =>
-    s.length > 12 ? `${s.slice(0, 6)}${"•".repeat(24)}${s.slice(-4)}` : "•".repeat(s.length);
+  const mask = (s: string | null | undefined) => {
+    const v = s ?? "";
+    return v.length > 12 ? `${v.slice(0, 6)}${"•".repeat(24)}${v.slice(-4)}` : "•".repeat(v.length);
+  };
 
   const copyText = async (text: string, key: string) => {
     await navigator.clipboard.writeText(text);
@@ -451,8 +453,8 @@ function SettingsPage() {
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Agent ID (send as <code className="font-mono">agent_id</code>)</Label>
                       <div className="flex gap-2">
-                        <Input readOnly value={a.agent_id} className="font-mono text-xs h-9" />
-                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => copyText(a.agent_id, `aid-${a.id}`)}>
+                        <Input readOnly value={a.agent_id ?? ""} className="font-mono text-xs h-9" />
+                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => copyText(a.agent_id ?? "", `aid-${a.id}`)}>
                           {copied === `aid-${a.id}` ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
@@ -477,7 +479,7 @@ function SettingsPage() {
                       <div className="flex gap-2">
                         <Input
                           readOnly
-                          value={reveal[a.id] ? a.webhook_secret : mask(a.webhook_secret)}
+                          value={reveal[a.id] ? (a.webhook_secret ?? "") : mask(a.webhook_secret)}
                           className="font-mono text-xs h-9"
                         />
                         <Button
@@ -488,7 +490,7 @@ function SettingsPage() {
                         >
                           {reveal[a.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
-                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => copyText(a.webhook_secret, `sec-${a.id}`)}>
+                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => copyText(a.webhook_secret ?? "", `sec-${a.id}`)}>
                           {copied === `sec-${a.id}` ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                         </Button>
                       </div>
