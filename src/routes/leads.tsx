@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, MessageSquare, Trash2, X } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import LeadDetailSheet from "@/components/leaseflow/LeadDetailSheet";
 import SendMessageDialog from "@/components/leaseflow/SendMessageDialog";
 import RetryFailedMessagesDialog from "@/components/leaseflow/RetryFailedMessagesDialog";
@@ -65,6 +66,7 @@ function LeadsPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const [retryOpen, setRetryOpen] = useState(false);
+  const [failedLeadIds, setFailedLeadIds] = useState<Set<string>>(new Set());
 
   // Reset selection when the visible page changes
   useEffect(() => { setSelected(new Set()); }, [page, pageSize, statusFilter, search]);
@@ -109,9 +111,43 @@ function LeadsPage() {
   useEffect(() => {
     const onCreated = () => load();
     window.addEventListener("leaseflow:lead-created", onCreated);
-    return () => window.removeEventListener("leaseflow:lead-created", onCreated);
+    window.addEventListener("leaseflow:calls-changed", onCreated);
+    return () => {
+      window.removeEventListener("leaseflow:lead-created", onCreated);
+      window.removeEventListener("leaseflow:calls-changed", onCreated);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, page, pageSize, statusFilter, search]);
+
+  // Compute "has unresolved message failure" per visible lead: latest message
+  // log for that lead is `message_failed` (no successful send afterwards).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user || leads.length === 0) {
+        setFailedLeadIds(new Set());
+        return;
+      }
+      const ids = leads.map((l) => l.id);
+      const { data } = await supabase
+        .from("call_logs" as never)
+        .select("lead_id, outcome, created_at")
+        .in("lead_id", ids)
+        .in("outcome", ["message_failed", "message_sent"])
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      const latest = new Map<string, string>();
+      for (const row of (data ?? []) as { lead_id: string; outcome: string }[]) {
+        if (!latest.has(row.lead_id)) latest.set(row.lead_id, row.outcome);
+      }
+      const failed = new Set<string>();
+      for (const [leadId, outcome] of latest) {
+        if (outcome === "message_failed") failed.add(leadId);
+      }
+      setFailedLeadIds(failed);
+    })();
+    return () => { cancelled = true; };
+  }, [user, leads]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -311,7 +347,20 @@ function LeadsPage() {
                         onClick={(e) => e.stopPropagation()}
                       />
                     </td>
-                    <td className="px-4 py-3 font-medium">{l.full_name}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        {l.full_name}
+                        {failedLeadIds.has(l.id) && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-destructive/15 text-destructive border border-destructive/30 px-1.5 py-0.5 text-[10px] font-medium"
+                            title="Last message attempt failed"
+                          >
+                            <AlertTriangle className="h-2.5 w-2.5" />
+                            Failed msg
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{l.phone ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.location ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{l.budget ?? "—"}</td>
