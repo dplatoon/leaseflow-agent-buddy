@@ -68,8 +68,8 @@ export function buildWhatsAppLink(phone: string, message: string): string {
 export function buildSmsLink(phone: string, message: string): string {
   const num = normalizePhone(phone);
   if (!num) return "";
-  // iOS uses & for body, others accept ?body=
-  return `sms:${num}?&body=${encodeURIComponent(message)}`;
+  // ?body= works on both iOS and Android
+  return `sms:${num}?body=${encodeURIComponent(message)}`;
 }
 
 export function buildLink(channel: MessageChannel, phone: string, message: string): string {
