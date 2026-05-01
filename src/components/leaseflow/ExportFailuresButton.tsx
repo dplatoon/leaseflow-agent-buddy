@@ -56,26 +56,33 @@ export default function ExportFailuresButton({
     }
     setExporting(true);
     try {
-      let q = supabase
-        .from("call_logs" as never)
-        .select("*")
-        .eq("outcome", "message_failed")
-        .order("created_at", { ascending: false });
-      if (range?.from) {
-        const from = new Date(range.from);
-        from.setHours(0, 0, 0, 0);
-        q = q.gte("created_at", from.toISOString());
+      // Page through results in chunks so we don't silently hit Supabase's 1000-row cap.
+      const PAGE = 1000;
+      const failures: CallLog[] = [];
+      for (let offset = 0; ; offset += PAGE) {
+        let q = supabase
+          .from("call_logs" as never)
+          .select("*")
+          .eq("outcome", "message_failed")
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE - 1);
+        if (range?.from) {
+          const from = new Date(range.from);
+          from.setHours(0, 0, 0, 0);
+          q = q.gte("created_at", from.toISOString());
+        }
+        if (range?.to) {
+          const to = new Date(range.to);
+          to.setHours(23, 59, 59, 999);
+          q = q.lte("created_at", to.toISOString());
+        }
+        if (scoped) q = q.in("lead_id", leadIds!);
+        const { data, error } = await q;
+        if (error) throw error;
+        const chunk = (data ?? []) as unknown as CallLog[];
+        failures.push(...chunk);
+        if (chunk.length < PAGE) break;
       }
-      if (range?.to) {
-        const to = new Date(range.to);
-        to.setHours(23, 59, 59, 999);
-        q = q.lte("created_at", to.toISOString());
-      }
-      if (scoped) q = q.in("lead_id", leadIds!);
-
-      const { data, error } = await q;
-      if (error) throw error;
-      const failures = (data ?? []) as unknown as CallLog[];
       if (failures.length === 0) {
         toast.info("No failed messages match the selected filters.");
         return;
