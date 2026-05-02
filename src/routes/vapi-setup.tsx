@@ -178,9 +178,10 @@ function VapiSetupPage() {
 
   const reload = useCallback(async () => {
     try {
-      const data = (await listAgents()) as Agent[];
-      setAgents(data);
-      setSelectedId((prev) => prev ?? data.find((a) => a.is_active)?.id ?? data[0]?.id ?? null);
+      const res = (await listAgents()) as unknown as { agents: Agent[] };
+      const list = res.agents ?? [];
+      setAgents(list);
+      setSelectedId((prev) => prev ?? list.find((a) => a.is_active)?.id ?? list[0]?.id ?? null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to load assistants");
     } finally {
