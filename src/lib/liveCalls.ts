@@ -64,6 +64,28 @@ export async function fetchTranscripts(sessionId: string, limit = 6): Promise<Ca
   return ((data ?? []) as unknown as CallTranscript[]).reverse();
 }
 
+export type LinkedLead = {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  location: string | null;
+  budget: string | null;
+  property_type: string | null;
+  urgency: string | null;
+  status: string;
+  source: string;
+};
+
+export async function fetchLeadById(leadId: string): Promise<LinkedLead | null> {
+  const { data, error } = await supabase
+    .from("leads")
+    .select("id, full_name, phone, location, budget, property_type, urgency, status, source")
+    .eq("id", leadId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as LinkedLead | null) ?? null;
+}
+
 export function formatLiveDuration(session: CallSession, nowMs: number): string {
   if (session.status === "ended" || session.status === "failed") {
     const secs = session.duration_seconds ??
