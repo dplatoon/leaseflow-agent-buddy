@@ -596,8 +596,8 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
           }
 
           const { data: upserted, error: upErr } = await supabaseAdmin
-            .from("call_sessions")
-            .upsert(baseRow, { onConflict: "vapi_call_id" })
+            .from("call_sessions" as never)
+            .upsert(baseRow as never, { onConflict: "vapi_call_id" })
             .select("id")
             .single();
           if (upErr) {
@@ -619,13 +619,13 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
             (m.transcriptType ?? "final") === "final"
           ) {
             const { error: tErr } = await supabaseAdmin
-              .from("call_transcripts")
+              .from("call_transcripts" as never)
               .insert({
                 session_id: sessionId,
                 user_id: userId2,
                 role: m.role,
                 text: m.transcript.slice(0, 2000),
-              });
+              } as never);
             if (tErr) {
               // Non-fatal — log but still return success so Vapi doesn't retry.
               console.warn(
