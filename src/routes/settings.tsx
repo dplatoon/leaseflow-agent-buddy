@@ -111,6 +111,19 @@ function SettingsPage() {
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [confirmRegenId, setConfirmRegenId] = useState<string | null>(null);
+  const [regenCountdown, setRegenCountdown] = useState(0);
+
+  useEffect(() => {
+    if (confirmRegenId === null) {
+      setRegenCountdown(0);
+      return;
+    }
+    setRegenCountdown(3);
+    const interval = setInterval(() => {
+      setRegenCountdown((c) => (c <= 1 ? 0 : c - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [confirmRegenId]);
 
   // Recent webhook events
   const [events, setEvents] = useState<RecentEvent[]>([]);
@@ -727,13 +740,14 @@ function SettingsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={regenCountdown > 0}
               onClick={() => {
                 const id = confirmRegenId;
                 setConfirmRegenId(null);
                 if (id) void handleRegenerate(id);
               }}
             >
-              Regenerate secret
+              {regenCountdown > 0 ? `Regenerate secret (${regenCountdown})` : "Regenerate secret"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
