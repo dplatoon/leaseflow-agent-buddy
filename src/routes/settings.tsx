@@ -38,6 +38,16 @@ import {
 import { sendWebhookTest } from "@/server/webhook-test.functions";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Link } from "@tanstack/react-router";
@@ -100,6 +110,7 @@ function SettingsPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
+  const [confirmRegenId, setConfirmRegenId] = useState<string | null>(null);
 
   // Recent webhook events
   const [events, setEvents] = useState<RecentEvent[]>([]);
@@ -210,7 +221,6 @@ function SettingsPage() {
   };
 
   const handleRegenerate = async (id: string) => {
-    if (!confirm("Regenerate this agent's webhook secret? The old secret will stop working immediately.")) return;
     setBusy((b) => ({ ...b, [id]: "regen" }));
     try {
       const res = await regenerateAgentSecret({ data: { id } });
@@ -471,7 +481,7 @@ function SettingsPage() {
                               size="sm"
                               variant="outline"
                               className="gap-1.5 bg-background"
-                              onClick={() => handleRegenerate(a.id)}
+                              onClick={() => setConfirmRegenId(a.id)}
                               disabled={busy[a.id] === "regen"}
                             >
                               <RefreshCw className={cn("h-3.5 w-3.5", busy[a.id] === "regen" && "animate-spin")} />
@@ -526,7 +536,7 @@ function SettingsPage() {
                           variant="ghost"
                           size="sm"
                           className="h-7 gap-1.5"
-                          onClick={() => handleRegenerate(a.id)}
+                          onClick={() => setConfirmRegenId(a.id)}
                           disabled={busy[a.id] === "regen"}
                         >
                           <RefreshCw className={cn("h-3.5 w-3.5", busy[a.id] === "regen" && "animate-spin")} />
@@ -704,6 +714,30 @@ function SettingsPage() {
           <Button variant="destructive" onClick={deleteAccount}>Delete account data</Button>
         </section>
       </div>
+
+      <AlertDialog open={confirmRegenId !== null} onOpenChange={(open) => { if (!open) setConfirmRegenId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate webhook secret?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The current secret will stop working immediately. Any Vapi assistant or integration still using the old secret will be rejected until you update it with the new value.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const id = confirmRegenId;
+                setConfirmRegenId(null);
+                if (id) void handleRegenerate(id);
+              }}
+            >
+              Regenerate secret
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
