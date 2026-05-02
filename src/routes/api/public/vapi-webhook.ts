@@ -33,6 +33,53 @@ const PayloadSchema = z
   })
   .strict();
 
+// Loose Vapi event envelope. Vapi sends a "message" object on its server URL
+// with a `type` field. We only care about three types for the live dashboard.
+const VapiEventSchema = z.object({
+  message: z
+    .object({
+      type: z.enum([
+        "status-update",
+        "transcript",
+        "end-of-call-report",
+        "conversation-update",
+      ]),
+      call: z
+        .object({
+          id: z.string().min(1).max(200),
+          assistantId: z.string().min(1).max(200).optional(),
+          customer: z
+            .object({ number: z.string().min(1).max(50).optional() })
+            .partial()
+            .optional(),
+        })
+        .passthrough(),
+      // status-update
+      status: z
+        .enum(["queued", "ringing", "in-progress", "ended", "forwarding"])
+        .optional(),
+      endedReason: z.string().max(200).optional(),
+      // transcript
+      role: z.enum(["assistant", "user", "system"]).optional(),
+      transcript: z.string().max(4000).optional(),
+      transcriptType: z.enum(["partial", "final"]).optional(),
+      // end-of-call-report
+      durationSeconds: z.number().nonnegative().max(86400).optional(),
+      // agent_id passthrough hint (some integrations include it on root)
+      agent_id: z.string().max(200).optional(),
+    })
+    .passthrough(),
+  // Some setups put agent_id at the root for convenience.
+  agent_id: z.string().max(200).optional(),
+});
+
+function looksLikeVapiEvent(json: unknown): boolean {
+  if (!json || typeof json !== "object") return false;
+  const obj = json as Record<string, unknown>;
+  const msg = obj.message as Record<string, unknown> | undefined;
+  return Boolean(msg && typeof msg.type === "string" && msg.call);
+}
+
 // Constant-time, constant-length comparison.
 // Both sides are SHA-256 hashed first so the comparison length is always 32
 // bytes regardless of the underlying secret length. This avoids leaking
@@ -450,6 +497,163 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
             { reason: "not_object" },
           );
         }
+
+        // ---- Vapi event branch (status-update / transcript / end-of-call) ----
+        if (looksLikeVapiEvent(json)) {
+          const ev = VapiEventSchema.safeParse(json);
+          if (!ev.success) {
+            const flat = ev.error.flatten();
+            return finish(
+              400,
+              { error: "Invalid Vapi event", details: flat },
+              "warn",
+              "invalid_payload",
+              { field_errors: flat.fieldErrors, form_errors: flat.formErrors },
+            );
+          }
+          const m = ev.data.message;
+          const agentIdHint =
+            ev.data.agent_id || m.agent_id || m.call.assistantId || null;
+          if (!agentIdHint) {
+            return finish(
+              400,
+              { error: "Missing agent_id" },
+              "warn",
+              "invalid_payload",
+              { reason: "no_agent_id" },
+            );
+          }
+
+          // Resolve agent + secret (mirrors the lead path).
+          const { data: agentRow2, error: aErr2 } = await supabaseAdmin
+            .from("agents")
+            .select("user_id, webhook_secret, is_active, agent_id")
+            .eq("agent_id", agentIdHint)
+            .maybeSingle();
+          if (aErr2) {
+            return finish(
+              500,
+              { error: "Lookup failed" },
+              "error",
+              "profile_lookup_failed",
+              { agent_id: agentIdHint, db_error: aErr2.message, code: aErr2.code },
+            );
+          }
+          const userId2 = (agentRow2 as { user_id?: string } | null)?.user_id ?? null;
+          const secret2 = (agentRow2 as { webhook_secret?: string } | null)?.webhook_secret ?? null;
+          const active2 = (agentRow2 as { is_active?: boolean } | null)?.is_active ?? true;
+          const cand2 = secret2 ?? DUMMY_SECRET;
+          const okUser = Boolean(agentRow2) && active2 && safeEqual(provided, cand2);
+          const okGlobal = expected ? safeEqual(provided, expected) : false;
+          if (!agentRow2 || !active2 || (!okUser && !okGlobal)) {
+            return genericUnauthorized("unauthorized", {
+              agent_id: agentIdHint,
+              reason: agentRow2 ? (active2 ? "secret_mismatch_for_agent" : "agent_disabled") : "unknown_agent",
+            });
+          }
+
+          const vapiCallId = m.call.id;
+          const callerPhone = m.call.customer?.number ?? null;
+
+          // Map Vapi status → our status.
+          const mapStatus = (s?: string): "ringing" | "connected" | "ended" | "failed" => {
+            switch (s) {
+              case "queued":
+              case "ringing":
+                return "ringing";
+              case "in-progress":
+              case "forwarding":
+                return "connected";
+              case "ended":
+                return "ended";
+              default:
+                return "ringing";
+            }
+          };
+
+          // Upsert session row (always — so transcripts can FK to it).
+          const baseRow: Record<string, unknown> = {
+            user_id: userId2,
+            agent_id: agentIdHint,
+            vapi_call_id: vapiCallId,
+            caller_phone: callerPhone,
+          };
+          if (m.type === "status-update") {
+            const next = mapStatus(m.status);
+            baseRow.status = next;
+            if (next === "connected") baseRow.connected_at = new Date().toISOString();
+            if (next === "ended") {
+              baseRow.ended_at = new Date().toISOString();
+              if (m.endedReason) baseRow.end_reason = m.endedReason;
+            }
+          } else if (m.type === "end-of-call-report") {
+            baseRow.status = "ended";
+            baseRow.ended_at = new Date().toISOString();
+            if (m.endedReason) baseRow.end_reason = m.endedReason;
+            if (typeof m.durationSeconds === "number") {
+              baseRow.duration_seconds = Math.round(m.durationSeconds);
+            }
+          }
+
+          const { data: upserted, error: upErr } = await supabaseAdmin
+            .from("call_sessions" as never)
+            .upsert(baseRow as never, { onConflict: "vapi_call_id" })
+            .select("id")
+            .single();
+          if (upErr) {
+            return finish(
+              500,
+              { error: "Session upsert failed" },
+              "error",
+              "insert_failed",
+              { agent_id: agentIdHint, user_id: userId2, db_error: upErr.message, code: upErr.code },
+            );
+          }
+          const sessionId = (upserted as { id: string }).id;
+
+          // Append transcript snippet if present (only finals to avoid noise).
+          if (
+            (m.type === "transcript" || m.type === "conversation-update") &&
+            m.transcript &&
+            m.role &&
+            (m.transcriptType ?? "final") === "final"
+          ) {
+            const { error: tErr } = await supabaseAdmin
+              .from("call_transcripts" as never)
+              .insert({
+                session_id: sessionId,
+                user_id: userId2,
+                role: m.role,
+                text: m.transcript.slice(0, 2000),
+              } as never);
+            if (tErr) {
+              // Non-fatal — log but still return success so Vapi doesn't retry.
+              console.warn(
+                JSON.stringify({
+                  ts: new Date().toISOString(),
+                  scope: "vapi-webhook",
+                  request_id: requestId,
+                  stage: "transcript_insert_failed",
+                  error: tErr.message,
+                }),
+              );
+            }
+          }
+
+          return finish(
+            200,
+            { success: true, session_id: sessionId, event: m.type },
+            "info",
+            "success",
+            {
+              agent_id: agentIdHint,
+              user_id: userId2,
+              event_type: m.type,
+              has_phone: Boolean(callerPhone),
+            },
+          );
+        }
+        // ---- end Vapi event branch ----
 
         const parsed = PayloadSchema.safeParse(json);
         if (!parsed.success) {

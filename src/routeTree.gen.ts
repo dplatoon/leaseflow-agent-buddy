@@ -12,12 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WebhookLogsRouteImport } from './routes/webhook-logs'
 import { Route as WebhookEventsRouteImport } from './routes/webhook-events'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as VapiSetupRouteImport } from './routes/vapi-setup'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RemindersRouteImport } from './routes/reminders'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LiveCallsRouteImport } from './routes/live-calls'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -37,6 +39,11 @@ const WebhookEventsRoute = WebhookEventsRouteImport.update({
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
   path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VapiSetupRoute = VapiSetupRouteImport.update({
+  id: '/vapi-setup',
+  path: '/vapi-setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -67,6 +74,11 @@ const PipelineRoute = PipelineRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveCallsRoute = LiveCallsRouteImport.update({
+  id: '/live-calls',
+  path: '/live-calls',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LeadsRoute = LeadsRouteImport.update({
@@ -100,12 +112,14 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/leads': typeof LeadsRoute
+  '/live-calls': typeof LiveCallsRoute
   '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/vapi-setup': typeof VapiSetupRoute
   '/verify-email': typeof VerifyEmailRoute
   '/webhook-events': typeof WebhookEventsRoute
   '/webhook-logs': typeof WebhookLogsRoute
@@ -116,12 +130,14 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/leads': typeof LeadsRoute
+  '/live-calls': typeof LiveCallsRoute
   '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/vapi-setup': typeof VapiSetupRoute
   '/verify-email': typeof VerifyEmailRoute
   '/webhook-events': typeof WebhookEventsRoute
   '/webhook-logs': typeof WebhookLogsRoute
@@ -133,12 +149,14 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/leads': typeof LeadsRoute
+  '/live-calls': typeof LiveCallsRoute
   '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
+  '/vapi-setup': typeof VapiSetupRoute
   '/verify-email': typeof VerifyEmailRoute
   '/webhook-events': typeof WebhookEventsRoute
   '/webhook-logs': typeof WebhookLogsRoute
@@ -151,12 +169,14 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/leads'
+    | '/live-calls'
     | '/login'
     | '/pipeline'
     | '/reminders'
     | '/reset-password'
     | '/settings'
     | '/signup'
+    | '/vapi-setup'
     | '/verify-email'
     | '/webhook-events'
     | '/webhook-logs'
@@ -167,12 +187,14 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/leads'
+    | '/live-calls'
     | '/login'
     | '/pipeline'
     | '/reminders'
     | '/reset-password'
     | '/settings'
     | '/signup'
+    | '/vapi-setup'
     | '/verify-email'
     | '/webhook-events'
     | '/webhook-logs'
@@ -183,12 +205,14 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/leads'
+    | '/live-calls'
     | '/login'
     | '/pipeline'
     | '/reminders'
     | '/reset-password'
     | '/settings'
     | '/signup'
+    | '/vapi-setup'
     | '/verify-email'
     | '/webhook-events'
     | '/webhook-logs'
@@ -200,12 +224,14 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LeadsRoute: typeof LeadsRoute
+  LiveCallsRoute: typeof LiveCallsRoute
   LoginRoute: typeof LoginRoute
   PipelineRoute: typeof PipelineRoute
   RemindersRoute: typeof RemindersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
+  VapiSetupRoute: typeof VapiSetupRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   WebhookEventsRoute: typeof WebhookEventsRoute
   WebhookLogsRoute: typeof WebhookLogsRoute
@@ -233,6 +259,13 @@ declare module '@tanstack/react-router' {
       path: '/verify-email'
       fullPath: '/verify-email'
       preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vapi-setup': {
+      id: '/vapi-setup'
+      path: '/vapi-setup'
+      fullPath: '/vapi-setup'
+      preLoaderRoute: typeof VapiSetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -275,6 +308,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live-calls': {
+      id: '/live-calls'
+      path: '/live-calls'
+      fullPath: '/live-calls'
+      preLoaderRoute: typeof LiveCallsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leads': {
@@ -320,12 +360,14 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LeadsRoute: LeadsRoute,
+  LiveCallsRoute: LiveCallsRoute,
   LoginRoute: LoginRoute,
   PipelineRoute: PipelineRoute,
   RemindersRoute: RemindersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
+  VapiSetupRoute: VapiSetupRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   WebhookEventsRoute: WebhookEventsRoute,
   WebhookLogsRoute: WebhookLogsRoute,

@@ -92,6 +92,92 @@ export type Database = {
         }
         Relationships: []
       }
+      call_sessions: {
+        Row: {
+          agent_id: string
+          caller_phone: string | null
+          connected_at: string | null
+          created_at: string
+          duration_seconds: number | null
+          end_reason: string | null
+          ended_at: string | null
+          id: string
+          lead_id: string | null
+          started_at: string
+          status: string
+          updated_at: string
+          user_id: string
+          vapi_call_id: string
+        }
+        Insert: {
+          agent_id: string
+          caller_phone?: string | null
+          connected_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          end_reason?: string | null
+          ended_at?: string | null
+          id?: string
+          lead_id?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          vapi_call_id: string
+        }
+        Update: {
+          agent_id?: string
+          caller_phone?: string | null
+          connected_at?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          end_reason?: string | null
+          ended_at?: string | null
+          id?: string
+          lead_id?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          vapi_call_id?: string
+        }
+        Relationships: []
+      }
+      call_transcripts: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+          text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+          session_id: string
+          text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+          text?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_transcripts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "call_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_resend_attempts: {
         Row: {
           created_at: string

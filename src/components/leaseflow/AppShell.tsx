@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, KanbanSquare, Settings, LogOut, Plus, Menu, Search, Webhook, Bell } from "lucide-react";
+import { LayoutDashboard, Users, KanbanSquare, Settings, LogOut, Plus, Menu, Search, Webhook, Bell, PhoneCall, PlugZap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import NewLeadModal from "./NewLeadModal";
@@ -14,7 +14,9 @@ const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/pipeline", label: "Pipeline", icon: KanbanSquare },
+  { to: "/live-calls", label: "Live Calls", icon: PhoneCall },
   { to: "/reminders", label: "Reminders", icon: Bell },
+  { to: "/vapi-setup", label: "Vapi Setup", icon: PlugZap },
   { to: "/webhook-events", label: "Webhook Events", icon: Webhook },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
