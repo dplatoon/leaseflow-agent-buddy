@@ -1,87 +1,102 @@
+# Vapi Setup Wizard + Live Call Dashboard
 
-# Final Audit — Messaging, Failures, Retry, Export
+Two new routes wired into the sidebar, plus a small DB extension to track live call state (ringing → connected → ended) and stream transcript snippets.
 
-## What is already in place (verified)
+---
 
-Templates & sending
-- `src/lib/templates.ts` — variable rendering (`{{name}}`, `{{first_name}}`, `{{location}}`, …), phone normalization, `wa.me` and `sms:` link builders, `logMessageAttempt` (sent / failed) writing structured headers into `call_logs.notes`.
-- `MessageTemplatesSection.tsx` + `SendMessageDialog.tsx` — manage templates, send 1‑off messages, log result.
-- DB: `message_templates` and `call_logs` tables exist with proper RLS (user-scoped CRUD).
+## 1. New route: `/vapi-setup` — Guided Vapi Setup
 
-Failure tracking
-- `call_logs.outcome` includes `message_sent` and `message_failed`.
-- `parseFailureReason` + `parseChannelFromNote` extract channel + reason from the note header.
-- `LeadDetailSheet` shows a “Last message failed” banner with one-click Resend.
-- `LeadCallsSection` has outcome filter (incl. Failures) and group-by-reason mode.
+A focused, step-by-step page (separate from the busy Settings page) that walks the user through connecting Vapi end-to-end.
 
-Bulk workflows
-- `RetryFailedMessagesDialog.tsx` — scans selected leads for latest `message_failed`, re-renders body with current lead vars, opens deep links staggered 400ms, shows progress + per-lead Sent/Failed badges, re-logs every attempt.
-- `ExportFailuresButton.tsx` — date-range CSV (presets + calendar), scoped to current Leads filter or all-time on Dashboard, includes parsed channel + reason + lead context.
+**Steps shown as a vertical stepper:**
+1. **Choose / confirm assistant** — dropdown of existing agents (from `agents` table) + “create new” inline.
+2. **Server URL** — read-only field with the canonical webhook URL (`https://<host>/api/public/vapi-webhook`) and a Copy button.
+3. **Webhook secret** — show/hide + copy + regenerate (with the same confirm dialog + countdown already used in Settings).
+4. **Vapi Assistant ID** — read-only `agent_id` field with copy. Plus an editable “Vapi-side ID” field stored locally as a sanity hint (no DB change needed; just a `localStorage` reminder so the user can verify they pasted the right one).
+5. **Test send** — “Send test webhook” button (reuses existing `sendWebhookTest` server fn) + a “Send with bad secret” button to verify rejection. Live status indicators per check:
+   - URL reachable (HTTP status received)
+   - Auth accepted (`authOk`)
+   - Lead inserted (`insertOk`)
+   - Each shows ✅ / ❌ / spinner with the response duration.
+6. **Go live checklist** — final summary card with green checks for each prerequisite (active agent, secret present, last test passed within 24 h). “Open live calls” button → `/live-calls`.
 
-Dashboard
-- “Messages Today” / “This Week” KPIs (sent vs failed + success %).
-- 7-day delivery breakdown with top failure reasons.
-- Global Export Failures button.
+**Status indicators:** small `Badge` per row — `idle` (muted), `pending` (spinner), `ok` (green), `fail` (destructive), with the last test timestamp shown.
 
-## Gaps and risks found in audit
+---
 
-1. Popup-block heuristic is unreliable
-   - `window.open` returning a window object does not guarantee the user actually saw WhatsApp open; some popup blockers return a stub. We may log `sent` when nothing happened.
+## 2. New route: `/live-calls` — Live Call Dashboard
 
-2. Retry flow uses original *rendered* body
-   - Stored `body` is post-render text from the original failure. `renderTemplate(c.body, …)` is a no-op on it, so updated lead fields (e.g. fixed phone, new budget) aren’t reflected. The phone is re-read live (good), but the message text isn’t.
+Real-time view of calls happening *right now*, plus the most recent ended calls.
 
-3. No dedupe / cooldown on retry
-   - If a lead already has a `message_sent` *after* the latest `message_failed`, the retry dialog still queues it. Could double-message a lead.
+**Layout (1484px viewport target):**
+- Top stat strip: **Active now**, **Ringing**, **Connected**, **Ended (last hour)**.
+- Two-column main area:
+  - **Active sessions** (left, ~60%): list of cards, one per active call. Each card:
+    - Caller phone, agent name, status badge (`ringing` amber pulse / `connected` green / `ended` muted)
+    - Duration ticker (live `mm:ss`)
+    - Latest transcript snippet (last 1–2 lines, monospace, auto-scroll)
+    - “View lead” link if linked
+  - **Recent ended** (right): compact table — phone, duration, outcome, time.
+- Empty state: friendly “No live calls — make a test call from Vapi” with a link to `/vapi-setup`.
 
-4. CSV export hits the 1000-row Supabase default
-   - Long history + “All time” will silently truncate. Needs paging or an explicit cap warning.
+**Realtime:** Supabase Realtime subscription on `call_sessions` and `call_transcripts` (postgres_changes, INSERT + UPDATE). Local duration ticker updates every 1s for cards in `ringing`/`connected`.
 
-5. No realtime refresh after retry
-   - `LeadCallsSection` listens to `leaseflow:calls-changed`, but the Dashboard KPIs don’t — they require a manual reload to reflect a just-finished retry batch.
+---
 
-6. SMS deep-link URL shape
-   - We use `sms:<num>?&body=…`. The leading `?&` is non-standard; Android prefers `?body=`, iOS accepts `&body=` only after a `?`. Should be `sms:<num>?body=…` (works on both).
+## 3. Database changes
 
-7. No rate limiter / batch cap
-   - User can select 200 leads and trigger 200 `window.open` calls. Browsers will block almost all. Needs a soft cap (e.g. 25/batch) with a “Continue with next batch” affordance.
+Two new tables (RLS scoped per user_id, like other tables):
 
-8. Accessibility / mobile
-   - Retry dialog progress list is fine, but there is no keyboard shortcut to cancel between sends and no way to skip a single lead mid-run.
+- **`call_sessions`** — one row per Vapi call
+  - vapi_call_id (unique), agent_id (text), user_id, lead_id (nullable)
+  - caller_phone, status (`ringing` | `connected` | `ended` | `failed`)
+  - started_at, connected_at, ended_at, duration_seconds
+  - end_reason (text, nullable)
+- **`call_transcripts`** — append-only snippets
+  - session_id (fk-by-id to call_sessions.id), user_id
+  - role (`assistant` | `user` | `system`), text, created_at
 
-## Recommended end-steps (ship order)
+Realtime publication: add both tables to `supabase_realtime`.
 
-Step 1 — Correctness fixes (small, high value)
-- Fix SMS link to `sms:<num>?body=…` in `buildSmsLink`.
-- In `RetryFailedMessagesDialog`, skip leads whose latest `call_logs` row is `message_sent` newer than the latest `message_failed` (dedupe).
-- In retry, store the *template name* + look up live template body when available; fall back to stored body. Always re-run `renderTemplate` against the live `Lead`.
+RLS: `auth.uid() = user_id` for SELECT; INSERT/UPDATE done by service role from the webhook.
 
-Step 2 — Robustness
-- Cap retry batch at 25; if more candidates exist, show “Run next 25” button after the current batch completes.
-- Improve popup detection: if `w` is null **or** `w.closed` is true within 50 ms, mark as failed.
-- Page CSV export in chunks of 1000 until exhausted; show row count in toast.
+---
 
-Step 3 — UX polish
-- Add a “Skip” button on each row during `running` to bail out of the next `window.open` for that lead.
-- Dashboard: subscribe to `leaseflow:calls-changed` and refetch the 7‑day window so KPIs update live after retry.
-- Leads page: add a small badge on the row when a lead has an unresolved failure (latest message log = failed).
+## 4. Webhook extension
 
-Step 4 — Optional, nice to have
-- Saved CSV export presets per user (e.g. “last 30d, WhatsApp only”).
-- “Mark failure as resolved” action that writes a tiny `message_sent` placeholder log so the banner / badge clears without forcing a new send.
-- Per-failure-reason quick filter chips on Dashboard breakdown that deep-link into Leads filtered by leads with that failure reason.
+Extend `src/routes/api/public/vapi-webhook.ts` to recognize Vapi event-style payloads (additive — current lead-extraction payload still works):
 
-## Technical notes (for implementation phase)
+- If body contains `type: "status-update" | "transcript" | "end-of-call-report"` and a `call.id`, route into `call_sessions` / `call_transcripts` upserts instead of (or in addition to) the lead insert.
+- Existing schema stays the default; the new branch is detected before strict parsing.
+- Update the Zod schema with a discriminated union so logging and validation continue to work.
 
-- Dedupe query (per lead): take the single latest `call_logs` row where `outcome IN ('message_sent','message_failed')` and only retry if it is `message_failed`. This is one query with `order created_at desc` + `limit 1` per lead, or a single grouped query using `distinct on (lead_id)` via an RPC. Simpler client-side: fetch last N logs per selected lead and compare in JS.
-- Live template lookup: pass `templates: MessageTemplate[]` into `RetryFailedMessagesDialog` (already loaded on Leads page if needed) and match by `templateName`. If no match, keep stored body.
-- Batch cap: keep candidate list intact, but slice into windows of 25 and drive `runRetry` over the current window only.
-- Popup detection:
-  ```ts
-  const w = window.open(link, "_blank", "noopener,noreferrer");
-  await new Promise((r) => setTimeout(r, 50));
-  const blocked = !w || w.closed === true;
-  ```
-- Dashboard live refresh: `useEffect(() => { const h = () => loadCalls(); window.addEventListener("leaseflow:calls-changed", h); return () => window.removeEventListener(...); }, [])`.
+(Lead insertion still happens at `end-of-call-report` when extracted fields are present, preserving current behavior.)
 
-No DB migrations are required for any of these steps — all changes are in `src/lib/templates.ts`, the retry dialog, the export button, and the dashboard.
+---
+
+## 5. Sidebar
+
+Add two nav items in `AppShell.tsx`:
+- `Vapi Setup` (PlugZap icon) → `/vapi-setup`
+- `Live Calls` (PhoneCall icon) → `/live-calls` with a small live count badge (active sessions) using a 15s poll fallback if Realtime is offline.
+
+---
+
+## Technical notes
+
+- New route files: `src/routes/vapi-setup.tsx`, `src/routes/live-calls.tsx`.
+- New helpers: `src/lib/liveCalls.ts` (types + helpers), `src/components/leaseflow/LiveCallCard.tsx`.
+- Reuse existing `sendWebhookTest` server fn; no new server fns required for setup wizard.
+- For the wizard, persist “last test result” + “last test at” per agent in `localStorage` keyed by `agent_id` (no DB column needed — the readiness check is just UX).
+- All new UI uses semantic tokens from `src/styles.css` (no hard-coded colors).
+- SEO: each route gets its own `head()` with title + description + og tags.
+
+---
+
+## Order of implementation
+
+1. Create migration: `call_sessions`, `call_transcripts`, RLS, realtime publication.
+2. Extend webhook handler to write to those tables on Vapi event payloads.
+3. Build `/live-calls` route + realtime subscription.
+4. Build `/vapi-setup` route + stepper + status indicators (reusing `sendWebhookTest`).
+5. Add sidebar nav entries.
