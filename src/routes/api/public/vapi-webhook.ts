@@ -33,6 +33,53 @@ const PayloadSchema = z
   })
   .strict();
 
+// Loose Vapi event envelope. Vapi sends a "message" object on its server URL
+// with a `type` field. We only care about three types for the live dashboard.
+const VapiEventSchema = z.object({
+  message: z
+    .object({
+      type: z.enum([
+        "status-update",
+        "transcript",
+        "end-of-call-report",
+        "conversation-update",
+      ]),
+      call: z
+        .object({
+          id: z.string().min(1).max(200),
+          assistantId: z.string().min(1).max(200).optional(),
+          customer: z
+            .object({ number: z.string().min(1).max(50).optional() })
+            .partial()
+            .optional(),
+        })
+        .passthrough(),
+      // status-update
+      status: z
+        .enum(["queued", "ringing", "in-progress", "ended", "forwarding"])
+        .optional(),
+      endedReason: z.string().max(200).optional(),
+      // transcript
+      role: z.enum(["assistant", "user", "system"]).optional(),
+      transcript: z.string().max(4000).optional(),
+      transcriptType: z.enum(["partial", "final"]).optional(),
+      // end-of-call-report
+      durationSeconds: z.number().nonnegative().max(86400).optional(),
+      // agent_id passthrough hint (some integrations include it on root)
+      agent_id: z.string().max(200).optional(),
+    })
+    .passthrough(),
+  // Some setups put agent_id at the root for convenience.
+  agent_id: z.string().max(200).optional(),
+});
+
+function looksLikeVapiEvent(json: unknown): boolean {
+  if (!json || typeof json !== "object") return false;
+  const obj = json as Record<string, unknown>;
+  const msg = obj.message as Record<string, unknown> | undefined;
+  return Boolean(msg && typeof msg.type === "string" && msg.call);
+}
+
 // Constant-time, constant-length comparison.
 // Both sides are SHA-256 hashed first so the comparison length is always 32
 // bytes regardless of the underlying secret length. This avoids leaking
