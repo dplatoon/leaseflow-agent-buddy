@@ -481,7 +481,7 @@ function SettingsPage() {
                               size="sm"
                               variant="outline"
                               className="gap-1.5 bg-background"
-                              onClick={() => handleRegenerate(a.id)}
+                              onClick={() => setConfirmRegenId(a.id)}
                               disabled={busy[a.id] === "regen"}
                             >
                               <RefreshCw className={cn("h-3.5 w-3.5", busy[a.id] === "regen" && "animate-spin")} />
@@ -536,7 +536,7 @@ function SettingsPage() {
                           variant="ghost"
                           size="sm"
                           className="h-7 gap-1.5"
-                          onClick={() => handleRegenerate(a.id)}
+                          onClick={() => setConfirmRegenId(a.id)}
                           disabled={busy[a.id] === "regen"}
                         >
                           <RefreshCw className={cn("h-3.5 w-3.5", busy[a.id] === "regen" && "animate-spin")} />
