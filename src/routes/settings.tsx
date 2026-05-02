@@ -714,6 +714,30 @@ function SettingsPage() {
           <Button variant="destructive" onClick={deleteAccount}>Delete account data</Button>
         </section>
       </div>
+
+      <AlertDialog open={confirmRegenId !== null} onOpenChange={(open) => { if (!open) setConfirmRegenId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate webhook secret?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The current secret will stop working immediately. Any Vapi assistant or integration still using the old secret will be rejected until you update it with the new value.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                const id = confirmRegenId;
+                setConfirmRegenId(null);
+                if (id) void handleRegenerate(id);
+              }}
+            >
+              Regenerate secret
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
