@@ -211,12 +211,45 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
               ? "0 lines"
               : `${snippets.length} line${snippets.length === 1 ? "" : "s"}${expanded ? "" : " · expand for more"}`}
           </span>
-          {session.lead_id && (
+          {session.lead_id ? (
             <a className="text-primary underline-offset-2 hover:underline" href={`/leads?lead=${session.lead_id}`}>
               View linked lead
             </a>
+          ) : (
+            <span className="text-muted-foreground italic">No matching lead</span>
           )}
         </div>
+
+        {lead && (
+          <div className="mt-3 rounded-md border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <UserCircle2 className="h-4 w-4 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{lead.full_name}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {lead.phone || "No phone"} · {lead.source}
+                  </div>
+                </div>
+              </div>
+              <Badge variant="outline" className="shrink-0 text-[10px]">{lead.status}</Badge>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {lead.location && (
+                <div className="flex items-center gap-1.5 truncate"><MapPin className="h-3 w-3" /><span className="truncate">{lead.location}</span></div>
+              )}
+              {lead.budget && (
+                <div className="flex items-center gap-1.5 truncate"><Wallet className="h-3 w-3" /><span className="truncate">{lead.budget}</span></div>
+              )}
+              {lead.property_type && (
+                <div className="flex items-center gap-1.5 truncate"><Home className="h-3 w-3" /><span className="truncate">{lead.property_type}</span></div>
+              )}
+              {lead.urgency && (
+                <div className="flex items-center gap-1.5 truncate"><Clock className="h-3 w-3" /><span className="truncate">{lead.urgency}</span></div>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
