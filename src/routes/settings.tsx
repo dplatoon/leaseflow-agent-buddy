@@ -38,6 +38,16 @@ import {
 import { sendWebhookTest } from "@/server/webhook-test.functions";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Link } from "@tanstack/react-router";
@@ -100,6 +110,7 @@ function SettingsPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
+  const [confirmRegenId, setConfirmRegenId] = useState<string | null>(null);
 
   // Recent webhook events
   const [events, setEvents] = useState<RecentEvent[]>([]);
@@ -210,7 +221,6 @@ function SettingsPage() {
   };
 
   const handleRegenerate = async (id: string) => {
-    if (!confirm("Regenerate this agent's webhook secret? The old secret will stop working immediately.")) return;
     setBusy((b) => ({ ...b, [id]: "regen" }));
     try {
       const res = await regenerateAgentSecret({ data: { id } });
