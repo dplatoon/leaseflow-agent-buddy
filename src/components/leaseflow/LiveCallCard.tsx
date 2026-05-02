@@ -3,8 +3,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Phone, PhoneCall, PhoneOff, User, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
-import { fetchTranscripts, formatLiveDuration, type CallSession, type CallTranscript } from "@/lib/liveCalls";
+import { Phone, PhoneCall, PhoneOff, User, ChevronDown, ChevronUp, Copy, Check, UserCircle2, MapPin, Wallet, Home, Clock } from "lucide-react";
+import { fetchTranscripts, fetchLeadById, formatLiveDuration, type CallSession, type CallTranscript, type LinkedLead } from "@/lib/liveCalls";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [statusFlash, setStatusFlash] = useState(false);
+  const [lead, setLead] = useState<LinkedLead | null>(null);
   const prevStatus = useRef(session.status);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
@@ -72,6 +73,21 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [snippets.length, expanded]);
+
+  // Load (and refresh) the linked lead whenever the session's lead_id changes.
+  useEffect(() => {
+    let cancelled = false;
+    if (!session.lead_id) {
+      setLead(null);
+      return;
+    }
+    void fetchLeadById(session.lead_id).then((l) => {
+      if (!cancelled) setLead(l);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.lead_id]);
 
   const statusMeta =
     session.status === "ringing"
