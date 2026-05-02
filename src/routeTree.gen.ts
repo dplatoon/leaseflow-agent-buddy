@@ -18,6 +18,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RemindersRouteImport } from './routes/reminders'
 import { Route as PipelineRouteImport } from './routes/pipeline'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LiveCallsRouteImport } from './routes/live-calls'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -69,6 +70,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LiveCallsRoute = LiveCallsRouteImport.update({
+  id: '/live-calls',
+  path: '/live-calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LeadsRoute = LeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/leads': typeof LeadsRoute
+  '/live-calls': typeof LiveCallsRoute
   '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/reminders': typeof RemindersRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/leads': typeof LeadsRoute
+  '/live-calls': typeof LiveCallsRoute
   '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/reminders': typeof RemindersRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/leads': typeof LeadsRoute
+  '/live-calls': typeof LiveCallsRoute
   '/login': typeof LoginRoute
   '/pipeline': typeof PipelineRoute
   '/reminders': typeof RemindersRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/leads'
+    | '/live-calls'
     | '/login'
     | '/pipeline'
     | '/reminders'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/leads'
+    | '/live-calls'
     | '/login'
     | '/pipeline'
     | '/reminders'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/forgot-password'
     | '/leads'
+    | '/live-calls'
     | '/login'
     | '/pipeline'
     | '/reminders'
@@ -200,6 +212,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LeadsRoute: typeof LeadsRoute
+  LiveCallsRoute: typeof LiveCallsRoute
   LoginRoute: typeof LoginRoute
   PipelineRoute: typeof PipelineRoute
   RemindersRoute: typeof RemindersRoute
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/live-calls': {
+      id: '/live-calls'
+      path: '/live-calls'
+      fullPath: '/live-calls'
+      preLoaderRoute: typeof LiveCallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/leads': {
       id: '/leads'
       path: '/leads'
@@ -320,6 +340,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LeadsRoute: LeadsRoute,
+  LiveCallsRoute: LiveCallsRoute,
   LoginRoute: LoginRoute,
   PipelineRoute: PipelineRoute,
   RemindersRoute: RemindersRoute,
