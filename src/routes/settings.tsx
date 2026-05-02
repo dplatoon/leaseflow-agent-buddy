@@ -464,6 +464,21 @@ function SettingsPage() {
                               ? "This assistant has no agent ID. The webhook cannot route incoming calls until an agent ID is assigned."
                               : "This assistant has no webhook secret. Click Regenerate to create one before connecting Vapi."}
                         </AlertDescription>
+                        {missingSecret && (
+                          <div className="mt-3">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5 bg-background"
+                              onClick={() => handleRegenerate(a.id)}
+                              disabled={busy[a.id] === "regen"}
+                            >
+                              <RefreshCw className={cn("h-3.5 w-3.5", busy[a.id] === "regen" && "animate-spin")} />
+                              {busy[a.id] === "regen" ? "Regenerating…" : "Regenerate secret"}
+                            </Button>
+                          </div>
+                        )}
                       </Alert>
                     )}
 
