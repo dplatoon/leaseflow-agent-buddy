@@ -3,8 +3,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Phone, PhoneCall, PhoneOff, User, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
-import { fetchTranscripts, formatLiveDuration, type CallSession, type CallTranscript } from "@/lib/liveCalls";
+import { Phone, PhoneCall, PhoneOff, User, ChevronDown, ChevronUp, Copy, Check, UserCircle2, MapPin, Wallet, Home, Clock } from "lucide-react";
+import { fetchTranscripts, fetchLeadById, formatLiveDuration, type CallSession, type CallTranscript, type LinkedLead } from "@/lib/liveCalls";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [statusFlash, setStatusFlash] = useState(false);
+  const [lead, setLead] = useState<LinkedLead | null>(null);
   const prevStatus = useRef(session.status);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
@@ -72,6 +73,21 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [snippets.length, expanded]);
+
+  // Load (and refresh) the linked lead whenever the session's lead_id changes.
+  useEffect(() => {
+    let cancelled = false;
+    if (!session.lead_id) {
+      setLead(null);
+      return;
+    }
+    void fetchLeadById(session.lead_id).then((l) => {
+      if (!cancelled) setLead(l);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.lead_id]);
 
   const statusMeta =
     session.status === "ringing"
@@ -195,12 +211,45 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
               ? "0 lines"
               : `${snippets.length} line${snippets.length === 1 ? "" : "s"}${expanded ? "" : " · expand for more"}`}
           </span>
-          {session.lead_id && (
+          {session.lead_id ? (
             <a className="text-primary underline-offset-2 hover:underline" href={`/leads?lead=${session.lead_id}`}>
               View linked lead
             </a>
+          ) : (
+            <span className="text-muted-foreground italic">No matching lead</span>
           )}
         </div>
+
+        {lead && (
+          <div className="mt-3 rounded-md border border-border bg-card p-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <UserCircle2 className="h-4 w-4 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{lead.full_name}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {lead.phone || "No phone"} · {lead.source}
+                  </div>
+                </div>
+              </div>
+              <Badge variant="outline" className="shrink-0 text-[10px]">{lead.status}</Badge>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {lead.location && (
+                <div className="flex items-center gap-1.5 truncate"><MapPin className="h-3 w-3" /><span className="truncate">{lead.location}</span></div>
+              )}
+              {lead.budget && (
+                <div className="flex items-center gap-1.5 truncate"><Wallet className="h-3 w-3" /><span className="truncate">{lead.budget}</span></div>
+              )}
+              {lead.property_type && (
+                <div className="flex items-center gap-1.5 truncate"><Home className="h-3 w-3" /><span className="truncate">{lead.property_type}</span></div>
+              )}
+              {lead.urgency && (
+                <div className="flex items-center gap-1.5 truncate"><Clock className="h-3 w-3" /><span className="truncate">{lead.urgency}</span></div>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

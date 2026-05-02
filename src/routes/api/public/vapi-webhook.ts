@@ -578,6 +578,29 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
             vapi_call_id: vapiCallId,
             caller_phone: callerPhone,
           };
+
+          // Auto-link to a lead by phone number (most-recent match for this user).
+          // Normalise to digits-only so "+1 (555) 123-4567" matches "5551234567".
+          if (callerPhone && userId2) {
+            const digits = callerPhone.replace(/\D+/g, "");
+            if (digits.length >= 4) {
+              // Match the trailing 7+ digits to be tolerant of country-code variants.
+              const tail = digits.slice(-Math.min(digits.length, 10));
+              const { data: leadMatch } = await supabaseAdmin
+                .from("leads")
+                .select("id, phone")
+                .eq("user_id", userId2)
+                .not("phone", "is", null)
+                .ilike("phone", `%${tail}%`)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (leadMatch?.id) {
+                baseRow.lead_id = leadMatch.id;
+              }
+            }
+          }
+
           if (m.type === "status-update") {
             const next = mapStatus(m.status);
             baseRow.status = next;
