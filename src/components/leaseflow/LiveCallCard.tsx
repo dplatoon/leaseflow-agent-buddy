@@ -3,8 +3,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Phone, PhoneCall, PhoneOff, User, ChevronDown, ChevronUp, Copy, Check, UserCircle2, MapPin, Wallet, Home, Clock } from "lucide-react";
-import { fetchTranscripts, fetchLeadById, formatLiveDuration, type CallSession, type CallTranscript, type LinkedLead } from "@/lib/liveCalls";
+import { Phone, PhoneCall, PhoneOff, User, ChevronDown, ChevronUp, Copy, Check, UserCircle2, MapPin, Wallet, Home, Clock, ShieldCheck, ShieldAlert, ShieldQuestion } from "lucide-react";
+import { fetchTranscripts, fetchLeadById, formatLiveDuration, type CallSession, type CallTranscript, type LinkedLead, type LeadLinkConfidence } from "@/lib/liveCalls";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -99,6 +99,37 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
       : { label: "Failed", tone: "bg-destructive/15 text-destructive border-destructive/30", Icon: PhoneOff, pulse: false };
 
   const StatusIcon = statusMeta.Icon;
+
+  const confidenceMeta: Record<LeadLinkConfidence, { label: string; tone: string; Icon: typeof ShieldCheck; hint: string }> = {
+    exact: {
+      label: "Exact match",
+      tone: "bg-status-scheduled/15 text-status-scheduled border-status-scheduled/30",
+      Icon: ShieldCheck,
+      hint: "Caller phone matches the lead's phone digit-for-digit.",
+    },
+    strong: {
+      label: "Strong match",
+      tone: "bg-status-contacted/15 text-status-contacted border-status-contacted/30",
+      Icon: ShieldCheck,
+      hint: "Last 10 digits match (country-code tolerant).",
+    },
+    partial: {
+      label: "Partial match",
+      tone: "bg-status-new/15 text-status-new border-status-new/30",
+      Icon: ShieldAlert,
+      hint: "Only the trailing digits match — verify before acting.",
+    },
+    none: {
+      label: "No match",
+      tone: "bg-muted text-muted-foreground border-border",
+      Icon: ShieldQuestion,
+      hint: "No lead matched this caller's phone.",
+    },
+  };
+  const linkConfidence: LeadLinkConfidence | null = session.lead_link_confidence
+    ?? (session.lead_id ? "partial" : null);
+  const confidence = linkConfidence ? confidenceMeta[linkConfidence] : null;
+  const ConfidenceIcon = confidence?.Icon;
 
   const copyCallerInfo = async () => {
     const lines = [
@@ -211,13 +242,25 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
               ? "0 lines"
               : `${snippets.length} line${snippets.length === 1 ? "" : "s"}${expanded ? "" : " · expand for more"}`}
           </span>
-          {session.lead_id ? (
-            <a className="text-primary underline-offset-2 hover:underline" href={`/leads?lead=${session.lead_id}`}>
-              View linked lead
-            </a>
-          ) : (
-            <span className="text-muted-foreground italic">No matching lead</span>
-          )}
+          <div className="flex items-center gap-2">
+            {confidence && ConfidenceIcon && (
+              <Badge
+                variant="outline"
+                className={cn("border gap-1 px-1.5 py-0", confidence.tone)}
+                title={confidence.hint}
+              >
+                <ConfidenceIcon className="h-3 w-3" />
+                <span className="text-[10px] font-medium">{confidence.label}</span>
+              </Badge>
+            )}
+            {session.lead_id ? (
+              <a className="text-primary underline-offset-2 hover:underline" href={`/leads?lead=${session.lead_id}`}>
+                View linked lead
+              </a>
+            ) : (
+              <span className="text-muted-foreground italic">No matching lead</span>
+            )}
+          </div>
         </div>
 
         {lead && (
@@ -232,7 +275,19 @@ export default function LiveCallCard({ session }: { session: CallSession }) {
                   </div>
                 </div>
               </div>
-              <Badge variant="outline" className="shrink-0 text-[10px]">{lead.status}</Badge>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {confidence && ConfidenceIcon && (
+                  <Badge
+                    variant="outline"
+                    className={cn("border gap-1 px-1.5 py-0", confidence.tone)}
+                    title={confidence.hint}
+                  >
+                    <ConfidenceIcon className="h-3 w-3" />
+                    <span className="text-[10px] font-medium">{confidence.label}</span>
+                  </Badge>
+                )}
+                <Badge variant="outline" className="text-[10px]">{lead.status}</Badge>
+              </div>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {lead.location && (

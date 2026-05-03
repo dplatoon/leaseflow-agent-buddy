@@ -581,11 +581,15 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
 
           // Auto-link to a lead by phone number (most-recent match for this user).
           // Normalise to digits-only so "+1 (555) 123-4567" matches "5551234567".
+          // Also score the match so the UI can show how confident the link is:
+          //   exact   — full normalised digits match
+          //   strong  — last 10 digits match (country-code tolerant)
+          //   partial — last 7 digits match (local number only)
+          //   none    — no match found
           if (callerPhone && userId2) {
-            const digits = callerPhone.replace(/\D+/g, "");
-            if (digits.length >= 4) {
-              // Match the trailing 7+ digits to be tolerant of country-code variants.
-              const tail = digits.slice(-Math.min(digits.length, 10));
+            const callerDigits = callerPhone.replace(/\D+/g, "");
+            if (callerDigits.length >= 4) {
+              const tail = callerDigits.slice(-Math.min(callerDigits.length, 10));
               const { data: leadMatch } = await supabaseAdmin
                 .from("leads")
                 .select("id, phone")
@@ -597,6 +601,20 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
                 .maybeSingle();
               if (leadMatch?.id) {
                 baseRow.lead_id = leadMatch.id;
+                const leadDigits = (leadMatch.phone ?? "").replace(/\D+/g, "");
+                let confidence: "exact" | "strong" | "partial" = "partial";
+                if (leadDigits && leadDigits === callerDigits) {
+                  confidence = "exact";
+                } else if (
+                  leadDigits.length >= 10 &&
+                  callerDigits.length >= 10 &&
+                  leadDigits.slice(-10) === callerDigits.slice(-10)
+                ) {
+                  confidence = "strong";
+                }
+                baseRow.lead_link_confidence = confidence;
+              } else {
+                baseRow.lead_link_confidence = "none";
               }
             }
           }
