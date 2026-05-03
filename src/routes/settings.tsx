@@ -145,8 +145,9 @@ function SettingsPage() {
     setAgentsLoading(true);
     try {
       const res = await listAgents();
-      setAgents(res.agents as Agent[]);
+      setAgents((res?.agents ?? []) as Agent[]);
     } catch (e) {
+      setAgents([]);
       toast.error(e instanceof Error ? e.message : "Failed to load agents");
     } finally {
       setAgentsLoading(false);
