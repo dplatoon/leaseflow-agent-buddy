@@ -103,6 +103,7 @@ export type Database = {
           ended_at: string | null
           id: string
           lead_id: string | null
+          lead_link_confidence: string | null
           started_at: string
           status: string
           updated_at: string
@@ -119,6 +120,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           lead_id?: string | null
+          lead_link_confidence?: string | null
           started_at?: string
           status?: string
           updated_at?: string
@@ -135,6 +137,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           lead_id?: string | null
+          lead_link_confidence?: string | null
           started_at?: string
           status?: string
           updated_at?: string
