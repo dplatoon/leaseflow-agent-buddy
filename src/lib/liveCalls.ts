@@ -2,12 +2,15 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type CallSessionStatus = "ringing" | "connected" | "ended" | "failed";
 
+export type LeadLinkConfidence = "exact" | "strong" | "partial" | "none";
+
 export type CallSession = {
   id: string;
   user_id: string;
   agent_id: string;
   vapi_call_id: string;
   lead_id: string | null;
+  lead_link_confidence: LeadLinkConfidence | null;
   caller_phone: string | null;
   status: CallSessionStatus;
   started_at: string;
