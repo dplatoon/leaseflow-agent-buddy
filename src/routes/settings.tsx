@@ -313,6 +313,21 @@ function SettingsPage() {
     }
   };
 
+  const handleIdempotencyTest = async (a: Agent) => {
+    setIdemTesting((t) => ({ ...t, [a.id]: true }));
+    try {
+      const res = await runIdempotencyTest({ data: { agentRowId: a.id } });
+      setIdemResults((prev) => ({ ...prev, [a.id]: res as IdempotencyResult }));
+      if (res.ok) toast.success("Idempotency test passed — no duplicates created");
+      else toast.error("Idempotency test failed — see details");
+      void loadEvents();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Idempotency test failed");
+    } finally {
+      setIdemTesting((t) => ({ ...t, [a.id]: false }));
+    }
+  };
+
   const saveName = async () => {
     if (!user) return;
     setSaving(true);
