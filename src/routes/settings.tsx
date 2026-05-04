@@ -694,6 +694,79 @@ function SettingsPage() {
                         )}
                       </div>
                     )}
+
+                    {/* Idempotency test */}
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <p className="text-xs text-muted-foreground">
+                        Replay the same webhook 3× to confirm no duplicate leads, sessions, or transcripts.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 shrink-0"
+                        disabled={idemTesting[a.id] || !a.is_active || hasCredentialIssue}
+                        title={hasCredentialIssue ? "Fix missing credentials before testing" : undefined}
+                        onClick={() => {
+                          if (hasCredentialIssue) {
+                            toast.error("Fix missing credentials first");
+                            return;
+                          }
+                          void handleIdempotencyTest(a);
+                        }}
+                      >
+                        {idemTesting[a.id] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        {idemTesting[a.id] ? "Replaying…" : "Run idempotency test"}
+                      </Button>
+                    </div>
+
+                    {ir && (
+                      <div
+                        className={cn(
+                          "rounded-md border p-3 text-xs space-y-2",
+                          ir.ok
+                            ? "border-emerald-500/30 bg-emerald-500/10"
+                            : "border-destructive/30 bg-destructive/10",
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          {ir.ok ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                          )}
+                          <span className="font-medium">
+                            {ir.ok ? "Idempotency verified" : "Idempotency check failed"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <CheckRow
+                            label={`Lead: 1 row from ${ir.lead.attempts.length} retries`}
+                            ok={ir.lead.pass}
+                          />
+                          <CheckRow
+                            label={`Session+transcript: 1 row from ${ir.events.attempts.length} retries`}
+                            ok={ir.events.pass}
+                          />
+                        </div>
+                        <div className="text-muted-foreground">
+                          Leads created: <span className="tabular-nums">{ir.lead.rows_created}</span> ·
+                          Distinct lead_ids returned:{" "}
+                          <span className="tabular-nums">{ir.lead.distinct_lead_ids}</span> ·
+                          Replays detected:{" "}
+                          <span className="tabular-nums">{ir.lead.replays_detected}</span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          Sessions created:{" "}
+                          <span className="tabular-nums">{ir.events.sessions_created}</span> ·
+                          Transcripts created:{" "}
+                          <span className="tabular-nums">{ir.events.transcripts_created}</span>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 );
               })}
