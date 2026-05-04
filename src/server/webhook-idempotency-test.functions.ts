@@ -5,11 +5,12 @@ import { getRequestHost } from "@tanstack/react-start/server";
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+type StepBody = { [k: string]: unknown };
 type Step = {
   attempt: number;
   status: number;
   ok: boolean;
-  body: Record<string, unknown> | null;
+  body: StepBody | null;
   duration_ms: number;
 };
 
@@ -31,9 +32,9 @@ async function postOnce(opts: {
     body: JSON.stringify(opts.body),
   });
   const text = await res.text();
-  let json: Record<string, unknown> | null = null;
+  let json: StepBody | null = null;
   try {
-    json = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+    json = text ? (JSON.parse(text) as StepBody) : null;
   } catch {
     json = null;
   }
