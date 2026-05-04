@@ -428,6 +428,7 @@ function SettingsPage() {
             <ul className="space-y-3">
               {agents.map((a) => {
                 const tr = testResults[a.id];
+                const ir = idemResults[a.id];
                 const isEditing = editing[a.id] !== undefined;
                 const missingAgentId = !a.agent_id || a.agent_id.trim() === "";
                 const missingSecret = !a.webhook_secret || a.webhook_secret.trim() === "";
