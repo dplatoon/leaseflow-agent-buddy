@@ -36,6 +36,7 @@ import {
   deleteAgent,
 } from "@/server/agents.functions";
 import { sendWebhookTest } from "@/server/webhook-test.functions";
+import { runIdempotencyTest } from "@/server/webhook-idempotency-test.functions";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -82,6 +83,23 @@ type TestResult = {
   url: string;
 };
 
+type IdempotencyResult = {
+  ok: boolean;
+  lead: {
+    pass: boolean;
+    rows_created: number;
+    distinct_lead_ids: number;
+    replays_detected: number;
+    attempts: { attempt: number; status: number }[];
+  };
+  events: {
+    pass: boolean;
+    sessions_created: number;
+    transcripts_created: number;
+    attempts: { attempt: number; status: number }[];
+  };
+};
+
 type RecentEvent = {
   id: string;
   request_id: string;
@@ -110,6 +128,8 @@ function SettingsPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
+  const [idemTesting, setIdemTesting] = useState<Record<string, boolean>>({});
+  const [idemResults, setIdemResults] = useState<Record<string, IdempotencyResult>>({});
   const [confirmRegenId, setConfirmRegenId] = useState<string | null>(null);
   const [regenCountdown, setRegenCountdown] = useState(0);
 
