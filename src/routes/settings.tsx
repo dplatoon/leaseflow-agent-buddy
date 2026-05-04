@@ -36,6 +36,7 @@ import {
   deleteAgent,
 } from "@/server/agents.functions";
 import { sendWebhookTest } from "@/server/webhook-test.functions";
+import { runIdempotencyTest } from "@/server/webhook-idempotency-test.functions";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -82,6 +83,23 @@ type TestResult = {
   url: string;
 };
 
+type IdempotencyResult = {
+  ok: boolean;
+  lead: {
+    pass: boolean;
+    rows_created: number;
+    distinct_lead_ids: number;
+    replays_detected: number;
+    attempts: { attempt: number; status: number }[];
+  };
+  events: {
+    pass: boolean;
+    sessions_created: number;
+    transcripts_created: number;
+    attempts: { attempt: number; status: number }[];
+  };
+};
+
 type RecentEvent = {
   id: string;
   request_id: string;
@@ -110,6 +128,8 @@ function SettingsPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
+  const [idemTesting, setIdemTesting] = useState<Record<string, boolean>>({});
+  const [idemResults, setIdemResults] = useState<Record<string, IdempotencyResult>>({});
   const [confirmRegenId, setConfirmRegenId] = useState<string | null>(null);
   const [regenCountdown, setRegenCountdown] = useState(0);
 
@@ -293,6 +313,21 @@ function SettingsPage() {
     }
   };
 
+  const handleIdempotencyTest = async (a: Agent) => {
+    setIdemTesting((t) => ({ ...t, [a.id]: true }));
+    try {
+      const res = await runIdempotencyTest({ data: { agentRowId: a.id } });
+      setIdemResults((prev) => ({ ...prev, [a.id]: res as IdempotencyResult }));
+      if (res.ok) toast.success("Idempotency test passed — no duplicates created");
+      else toast.error("Idempotency test failed — see details");
+      void loadEvents();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Idempotency test failed");
+    } finally {
+      setIdemTesting((t) => ({ ...t, [a.id]: false }));
+    }
+  };
+
   const saveName = async () => {
     if (!user) return;
     setSaving(true);
@@ -393,6 +428,7 @@ function SettingsPage() {
             <ul className="space-y-3">
               {agents.map((a) => {
                 const tr = testResults[a.id];
+                const ir = idemResults[a.id];
                 const isEditing = editing[a.id] !== undefined;
                 const missingAgentId = !a.agent_id || a.agent_id.trim() === "";
                 const missingSecret = !a.webhook_secret || a.webhook_secret.trim() === "";
@@ -656,6 +692,79 @@ function SettingsPage() {
                         {!tr.ok && tr.message && (
                           <div className="text-destructive break-words">{tr.message}</div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Idempotency test */}
+                    <div className="flex items-center justify-between gap-3 pt-1">
+                      <p className="text-xs text-muted-foreground">
+                        Replay the same webhook 3× to confirm no duplicate leads, sessions, or transcripts.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 shrink-0"
+                        disabled={idemTesting[a.id] || !a.is_active || hasCredentialIssue}
+                        title={hasCredentialIssue ? "Fix missing credentials before testing" : undefined}
+                        onClick={() => {
+                          if (hasCredentialIssue) {
+                            toast.error("Fix missing credentials first");
+                            return;
+                          }
+                          void handleIdempotencyTest(a);
+                        }}
+                      >
+                        {idemTesting[a.id] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        {idemTesting[a.id] ? "Replaying…" : "Run idempotency test"}
+                      </Button>
+                    </div>
+
+                    {ir && (
+                      <div
+                        className={cn(
+                          "rounded-md border p-3 text-xs space-y-2",
+                          ir.ok
+                            ? "border-emerald-500/30 bg-emerald-500/10"
+                            : "border-destructive/30 bg-destructive/10",
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          {ir.ok ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-destructive" />
+                          )}
+                          <span className="font-medium">
+                            {ir.ok ? "Idempotency verified" : "Idempotency check failed"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <CheckRow
+                            label={`Lead: 1 row from ${ir.lead.attempts.length} retries`}
+                            ok={ir.lead.pass}
+                          />
+                          <CheckRow
+                            label={`Session+transcript: 1 row from ${ir.events.attempts.length} retries`}
+                            ok={ir.events.pass}
+                          />
+                        </div>
+                        <div className="text-muted-foreground">
+                          Leads created: <span className="tabular-nums">{ir.lead.rows_created}</span> ·
+                          Distinct lead_ids returned:{" "}
+                          <span className="tabular-nums">{ir.lead.distinct_lead_ids}</span> ·
+                          Replays detected:{" "}
+                          <span className="tabular-nums">{ir.lead.replays_detected}</span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          Sessions created:{" "}
+                          <span className="tabular-nums">{ir.events.sessions_created}</span> ·
+                          Transcripts created:{" "}
+                          <span className="tabular-nums">{ir.events.transcripts_created}</span>
+                        </div>
                       </div>
                     )}
                   </li>
