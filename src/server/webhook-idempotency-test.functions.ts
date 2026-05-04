@@ -6,12 +6,21 @@ import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 type StepBody = { [k: string]: unknown };
-type Step = {
+type RawStep = {
   attempt: number;
   status: number;
   ok: boolean;
   body: StepBody | null;
   duration_ms: number;
+};
+type Step = {
+  attempt: number;
+  status: number;
+  ok: boolean;
+  duration_ms: number;
+  lead_id: string | null;
+  idempotent_replay: boolean;
+  error: string | null;
 };
 
 async function postOnce(opts: {
@@ -19,7 +28,7 @@ async function postOnce(opts: {
   body: unknown;
   secret: string;
   requestId: string;
-}): Promise<Step & { attempt: 0 }> {
+}): Promise<RawStep> {
   const t0 = Date.now();
   const res = await fetch(opts.url, {
     method: "POST",
@@ -44,6 +53,18 @@ async function postOnce(opts: {
     ok: res.status === 200 && Boolean(json?.success),
     body: json,
     duration_ms: Date.now() - t0,
+  };
+}
+
+function strip(raw: RawStep, attempt: number): Step {
+  return {
+    attempt,
+    status: raw.status,
+    ok: raw.ok,
+    duration_ms: raw.duration_ms,
+    lead_id: (raw.body?.lead_id as string | undefined) ?? null,
+    idempotent_replay: Boolean(raw.body?.idempotent_replay),
+    error: (raw.body?.error as string | undefined) ?? null,
   };
 }
 
@@ -91,13 +112,13 @@ export const runIdempotencyTest = createServerFn({ method: "POST" })
 
     const leadSteps: Step[] = [];
     for (let i = 1; i <= 3; i++) {
-      const s = await postOnce({
+      const raw = await postOnce({
         url,
         body: leadPayload,
         secret: a.webhook_secret,
         requestId: leadRequestId,
       });
-      leadSteps.push({ ...s, attempt: i });
+      leadSteps.push(strip(raw, i));
     }
 
     // Count actual lead rows created by this request_id (via marker).
@@ -110,11 +131,11 @@ export const runIdempotencyTest = createServerFn({ method: "POST" })
     const distinctLeadIds = Array.from(
       new Set(
         leadSteps
-          .map((s) => (s.body?.lead_id as string | undefined) ?? null)
+          .map((s) => s.lead_id)
           .filter((v): v is string => Boolean(v)),
       ),
     );
-    const replays = leadSteps.filter((s) => Boolean(s.body?.idempotent_replay)).length;
+    const replays = leadSteps.filter((s) => s.idempotent_replay).length;
 
     const leadPass =
       leadSteps.every((s) => s.ok) &&
@@ -147,13 +168,13 @@ export const runIdempotencyTest = createServerFn({ method: "POST" })
 
     const eventSteps: Step[] = [];
     for (let i = 1; i <= 3; i++) {
-      const s = await postOnce({
+      const raw = await postOnce({
         url,
         body: eventPayload,
         secret: a.webhook_secret,
         requestId: randomUUID(),
       });
-      eventSteps.push({ ...s, attempt: i });
+      eventSteps.push(strip(raw, i));
     }
 
     const { data: sessionsRows } = await supabaseAdmin
