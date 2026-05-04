@@ -792,6 +792,32 @@ export const Route = createFileRoute("/api/public/vapi-webhook")({
           });
         }
 
+        // ---- Idempotency: if we've already successfully processed this exact
+        // delivery (same x-request-id), return the cached result instead of
+        // inserting a duplicate lead. This is the safety net for Vapi retries.
+        if (request.headers.get("x-request-id")) {
+          const { data: prior } = await supabaseAdmin
+            .from("webhook_logs")
+            .select("lead_id")
+            .eq("request_id", requestId)
+            .eq("status", "inserted")
+            .maybeSingle();
+          if (prior?.lead_id) {
+            return finish(
+              200,
+              { success: true, lead_id: prior.lead_id, idempotent_replay: true },
+              "info",
+              "success",
+              {
+                agent_id: p.agent_id,
+                user_id: resolvedUserId,
+                lead_id: prior.lead_id,
+                idempotent_replay: true,
+              },
+            );
+          }
+        }
+
         const { data: inserted, error: iErr } = await supabaseAdmin.from("leads").insert({
           user_id: resolvedUserId!,
           full_name: p.extracted_name || "Unknown caller",
