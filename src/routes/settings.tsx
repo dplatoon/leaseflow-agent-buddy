@@ -152,7 +152,11 @@ function SettingsPage() {
   useEffect(() => {
     (async () => {
       if (!user) return;
-      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, agent_id, is_subscribed, created_at")
+        .eq("id", user.id)
+        .single();
       if (data) {
         setProfile(data as Profile);
         setFullName(data.full_name ?? "");
