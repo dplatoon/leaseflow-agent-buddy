@@ -23,7 +23,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, MessageSquare, Trash2, X } from "lucide-react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Sheet as SheetIcon } from "lucide-react";
 import LeadDetailSheet from "@/components/leaseflow/LeadDetailSheet";
 import SendMessageDialog from "@/components/leaseflow/SendMessageDialog";
 import RetryFailedMessagesDialog from "@/components/leaseflow/RetryFailedMessagesDialog";
@@ -31,6 +31,7 @@ import ExportFailuresButton from "@/components/leaseflow/ExportFailuresButton";
 import { RefreshCw } from "lucide-react";
 import { handleStatusChange } from "@/lib/reminders";
 import { useReminderRules } from "@/hooks/useReminderRules";
+import { syncNewLeadsToSheets } from "@/server/sheets-sync.functions";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -67,6 +68,7 @@ function LeadsPage() {
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const [retryOpen, setRetryOpen] = useState(false);
   const [failedLeadIds, setFailedLeadIds] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
 
   // Reset selection when the visible page changes
   useEffect(() => { setSelected(new Set()); }, [page, pageSize, statusFilter, search]);
@@ -150,6 +152,29 @@ function LeadsPage() {
   }, [user, leads]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const handleSyncToSheets = async () => {
+    setSyncing(true);
+    const t = toast.loading("Syncing new leads to Google Sheets…");
+    try {
+      const res = await syncNewLeadsToSheets();
+      toast.dismiss(t);
+      if (res.total === 0) {
+        toast.info("No new leads from the last 24 hours to sync");
+      } else if (res.failures.length === 0) {
+        toast.success(`Synced ${res.synced} of ${res.total} lead${res.total === 1 ? "" : "s"} to Sheets`);
+      } else {
+        toast.warning(`Synced ${res.synced} of ${res.total} — ${res.failures.length} failed`);
+      }
+      load();
+    } catch (e) {
+      toast.dismiss(t);
+      toast.error(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const rangeFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeTo = Math.min(page * pageSize, total);
 
@@ -224,6 +249,17 @@ function LeadsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncToSheets}
+              disabled={syncing}
+              className="gap-2"
+              title="Push new leads from the last 24h to your Google Sheets webhook"
+            >
+              <SheetIcon className="h-4 w-4" />
+              {syncing ? "Syncing…" : "Sync to Sheets"}
+            </Button>
             <ExportFailuresButton
               leadIds={leads.map((l) => l.id)}
               label="Export failures"

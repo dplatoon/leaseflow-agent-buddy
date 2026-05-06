@@ -264,6 +264,7 @@ export type Database = {
           property_type: string | null
           source: string
           status: string
+          synced_to_sheets: boolean
           urgency: string | null
           user_id: string
         }
@@ -278,6 +279,7 @@ export type Database = {
           property_type?: string | null
           source?: string
           status?: string
+          synced_to_sheets?: boolean
           urgency?: string | null
           user_id: string
         }
@@ -292,6 +294,7 @@ export type Database = {
           property_type?: string | null
           source?: string
           status?: string
+          synced_to_sheets?: boolean
           urgency?: string | null
           user_id?: string
         }
@@ -346,6 +349,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_subscribed: boolean
+          sheets_webhook_url: string | null
           stripe_customer_id: string | null
           webhook_secret: string
         }
@@ -356,6 +360,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_subscribed?: boolean
+          sheets_webhook_url?: string | null
           stripe_customer_id?: string | null
           webhook_secret?: string
         }
@@ -366,6 +371,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_subscribed?: boolean
+          sheets_webhook_url?: string | null
           stripe_customer_id?: string | null
           webhook_secret?: string
         }
