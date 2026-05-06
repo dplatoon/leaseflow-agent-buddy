@@ -392,7 +392,11 @@ function LeadsPage() {
                   <tr
                     key={l.id}
                     onClick={() => { setOpenLeadId(l.id); setSheetOpen(true); }}
-                    className={cn("hover:bg-accent/30 cursor-pointer", selected.has(l.id) && "bg-accent/30")}
+                    className={cn(
+                      "hover:bg-accent/30 cursor-pointer",
+                      selected.has(l.id) && "bg-accent/30",
+                      highlightIds.has(l.id) && "row-highlight"
+                    )}
                   >
                     <td className="px-4 py-3">
                       <Checkbox
