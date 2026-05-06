@@ -32,6 +32,7 @@ import { RefreshCw } from "lucide-react";
 import { handleStatusChange } from "@/lib/reminders";
 import { useReminderRules } from "@/hooks/useReminderRules";
 import { syncNewLeadsToSheets } from "@/server/sheets-sync.functions";
+import { useNewLeadRealtime } from "@/hooks/useNewLeadRealtime";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -69,6 +70,24 @@ function LeadsPage() {
   const [retryOpen, setRetryOpen] = useState(false);
   const [failedLeadIds, setFailedLeadIds] = useState<Set<string>>(new Set());
   const [syncing, setSyncing] = useState(false);
+  const [highlightIds, setHighlightIds] = useState<Set<string>>(new Set());
+
+  useNewLeadRealtime((lead) => {
+    // Only prepend when first page + filters allow (status all or matches, no search)
+    const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
+    const q = search.trim().toLowerCase();
+    const matchesSearch = !q || lead.full_name.toLowerCase().includes(q) || (lead.phone ?? "").toLowerCase().includes(q);
+    if (page === 1 && matchesStatus && matchesSearch) {
+      setLeads((prev) => (prev.some((l) => l.id === lead.id) ? prev : [lead, ...prev].slice(0, pageSize)));
+      setTotal((t) => t + 1);
+      setHighlightIds((s) => new Set(s).add(lead.id));
+      setTimeout(() => {
+        setHighlightIds((s) => { const n = new Set(s); n.delete(lead.id); return n; });
+      }, 2600);
+    } else {
+      setTotal((t) => t + 1);
+    }
+  });
 
   // Reset selection when the visible page changes
   useEffect(() => { setSelected(new Set()); }, [page, pageSize, statusFilter, search]);
@@ -373,7 +392,11 @@ function LeadsPage() {
                   <tr
                     key={l.id}
                     onClick={() => { setOpenLeadId(l.id); setSheetOpen(true); }}
-                    className={cn("hover:bg-accent/30 cursor-pointer", selected.has(l.id) && "bg-accent/30")}
+                    className={cn(
+                      "hover:bg-accent/30 cursor-pointer",
+                      selected.has(l.id) && "bg-accent/30",
+                      highlightIds.has(l.id) && "row-highlight"
+                    )}
                   >
                     <td className="px-4 py-3">
                       <Checkbox

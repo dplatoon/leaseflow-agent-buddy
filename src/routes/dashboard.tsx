@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
 import { parseFailureReason } from "@/lib/templates";
 import ExportFailuresButton from "@/components/leaseflow/ExportFailuresButton";
+import { useNewLeadRealtime } from "@/hooks/useNewLeadRealtime";
 
 const TREND_FILTER_KEY = "leaseflow:dashboard:trend-outcome-filter";
 
@@ -41,6 +42,12 @@ function DashboardPage() {
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [trendFilter, setTrendFilter] = useState<Set<CallOutcome>>(() => new Set(loadTrendFilter()));
+  const [flashTotal, setFlashTotal] = useState(0);
+
+  useNewLeadRealtime((lead) => {
+    setLeads((prev) => (prev.some((l) => l.id === lead.id) ? prev : [lead, ...prev]));
+    setFlashTotal((n) => n + 1);
+  });
 
   // Persist filter
   useEffect(() => {
@@ -202,12 +209,25 @@ function DashboardPage() {
 
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {kpis.map((k) => (
-            <div key={k.label} className="rounded-xl border border-border bg-surface p-5">
+            <div
+              key={k.label}
+              className={cn(
+                "rounded-xl border border-border bg-surface p-5"
+              )}
+            >
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">{k.label}</span>
                 <k.icon className={cn("h-4 w-4", k.tint)} />
               </div>
-              <div className="mt-2 text-3xl font-semibold tracking-tight">{k.value}</div>
+              <div
+                key={k.label === "Total Leads" ? `total-${flashTotal}` : k.label}
+                className={cn(
+                  "mt-2 text-3xl font-semibold tracking-tight rounded-md px-1 -mx-1",
+                  k.label === "Total Leads" && flashTotal > 0 && "flash-green"
+                )}
+              >
+                {k.value}
+              </div>
               {"sub" in k && k.sub && (
                 <div className="mt-1 text-[11px] text-muted-foreground">{k.sub}</div>
               )}
