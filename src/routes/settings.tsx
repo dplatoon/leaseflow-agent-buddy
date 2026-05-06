@@ -61,6 +61,7 @@ export const Route = createFileRoute("/settings")({
 type Profile = {
   id: string; full_name: string | null; email: string | null;
   agent_id: string;
+  sheets_webhook_url?: string | null;
 };
 
 type Agent = {
@@ -116,6 +117,8 @@ function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [fullName, setFullName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sheetsUrl, setSheetsUrl] = useState("");
+  const [savingSheets, setSavingSheets] = useState(false);
 
   // Multi-agent state
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -154,12 +157,13 @@ function SettingsPage() {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, email, agent_id, is_subscribed, created_at")
+        .select("id, full_name, email, agent_id, is_subscribed, created_at, sheets_webhook_url")
         .eq("id", user.id)
         .single();
       if (data) {
         setProfile(data as Profile);
         setFullName(data.full_name ?? "");
+        setSheetsUrl((data as { sheets_webhook_url?: string | null }).sheets_webhook_url ?? "");
       }
     })();
   }, [user]);
@@ -341,6 +345,27 @@ function SettingsPage() {
     toast.success("Profile updated");
   };
 
+  const saveSheetsUrl = async () => {
+    if (!user) return;
+    const trimmed = sheetsUrl.trim();
+    if (trimmed) {
+      try {
+        const u = new URL(trimmed);
+        if (u.protocol !== "https:") throw new Error("URL must use https");
+      } catch {
+        return toast.error("Enter a valid https URL");
+      }
+    }
+    setSavingSheets(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ sheets_webhook_url: trimmed || null })
+      .eq("id", user.id);
+    setSavingSheets(false);
+    if (error) return toast.error(error.message);
+    toast.success("Google Sheets webhook saved");
+  };
+
   const deleteAccount = async () => {
     if (!user) return;
     if (!confirm("Permanently delete your account and all leads? This cannot be undone.")) return;
@@ -377,6 +402,28 @@ function SettingsPage() {
         </section>
 
         <ConnectedAccounts />
+
+        {/* Google Sheets sync */}
+        <section className="rounded-xl border border-border bg-surface p-5 space-y-4">
+          <div>
+            <h2 className="font-medium">Google Sheets sync</h2>
+            <p className="text-sm text-muted-foreground">
+              Paste your Google Apps Script web app URL. Use the “Sync to Sheets” button on the Leads page to push new leads.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Google Sheets webhook URL</Label>
+            <Input
+              type="url"
+              placeholder="https://script.google.com/macros/s/.../exec"
+              value={sheetsUrl}
+              onChange={(e) => setSheetsUrl(e.target.value)}
+            />
+          </div>
+          <Button onClick={saveSheetsUrl} disabled={savingSheets}>
+            {savingSheets ? "Saving…" : "Save webhook URL"}
+          </Button>
+        </section>
 
         {/* Vapi assistants — multi-agent */}
         <section className="rounded-xl border border-border bg-surface p-5 space-y-4">
