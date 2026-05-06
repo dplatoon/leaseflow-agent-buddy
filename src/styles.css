@@ -94,3 +94,16 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+@keyframes leaseflow-flash {
+  0% { background-color: transparent; }
+  20% { background-color: oklch(0.7 0.18 150 / 0.35); }
+  100% { background-color: transparent; }
+}
+.flash-green { animation: leaseflow-flash 1.2s ease-out; }
+
+@keyframes leaseflow-row-highlight {
+  0% { background-color: oklch(0.7 0.18 150 / 0.28); }
+  100% { background-color: transparent; }
+}
+.row-highlight { animation: leaseflow-row-highlight 2.5s ease-out; }
