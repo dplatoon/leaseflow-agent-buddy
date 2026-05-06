@@ -212,15 +212,22 @@ function DashboardPage() {
             <div
               key={k.label}
               className={cn(
-                "rounded-xl border border-border bg-surface p-5",
-                k.label === "Total Leads" && `flash-key-${flashTotal}`
+                "rounded-xl border border-border bg-surface p-5"
               )}
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">{k.label}</span>
                 <k.icon className={cn("h-4 w-4", k.tint)} />
               </div>
-              <div className="mt-2 text-3xl font-semibold tracking-tight">{k.value}</div>
+              <div
+                key={k.label === "Total Leads" ? `total-${flashTotal}` : k.label}
+                className={cn(
+                  "mt-2 text-3xl font-semibold tracking-tight rounded-md px-1 -mx-1",
+                  k.label === "Total Leads" && flashTotal > 0 && "flash-green"
+                )}
+              >
+                {k.value}
+              </div>
               {"sub" in k && k.sub && (
                 <div className="mt-1 text-[11px] text-muted-foreground">{k.sub}</div>
               )}
