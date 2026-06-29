@@ -34,9 +34,9 @@ import {
   setAgentActive,
   regenerateAgentSecret,
   deleteAgent,
-} from "@/server/agents.functions";
-import { sendWebhookTest } from "@/server/webhook-test.functions";
-import { runIdempotencyTest } from "@/server/webhook-idempotency-test.functions";
+} from "@/lib/agents.functions";
+import { sendWebhookTest } from "@/lib/webhook-test.functions";
+import { runIdempotencyTest } from "@/lib/webhook-idempotency-test.functions";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {

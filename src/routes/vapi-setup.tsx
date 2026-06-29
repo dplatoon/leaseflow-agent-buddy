@@ -27,8 +27,8 @@ import {
   CircleDot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listAgents, regenerateAgentSecret } from "@/server/agents.functions";
-import { sendWebhookTest } from "@/server/webhook-test.functions";
+import { listAgents, regenerateAgentSecret } from "@/lib/agents.functions";
+import { sendWebhookTest } from "@/lib/webhook-test.functions";
 import {
   AlertDialog,
   AlertDialogAction,
