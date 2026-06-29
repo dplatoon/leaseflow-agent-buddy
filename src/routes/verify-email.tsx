@@ -9,7 +9,7 @@ import { MailCheck, Check, Circle, Loader2 } from "lucide-react";
 import {
   resendVerificationEmail,
   getResendStatus,
-} from "@/server/email-resend.functions";
+} from "@/lib/email-resend.functions";
 
 export const Route = createFileRoute("/verify-email")({
   head: () => ({ meta: [{ title: "Verify your email — LeaseFlow" }] }),
