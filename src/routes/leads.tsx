@@ -31,7 +31,7 @@ import ExportFailuresButton from "@/components/leaseflow/ExportFailuresButton";
 import { RefreshCw } from "lucide-react";
 import { handleStatusChange } from "@/lib/reminders";
 import { useReminderRules } from "@/hooks/useReminderRules";
-import { syncNewLeadsToSheets } from "@/server/sheets-sync.functions";
+import { syncNewLeadsToSheets } from "@/lib/sheets-sync.functions";
 import { useNewLeadRealtime } from "@/hooks/useNewLeadRealtime";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
