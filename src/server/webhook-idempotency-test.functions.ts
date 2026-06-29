@@ -74,7 +74,7 @@ export const runIdempotencyTest = createServerFn({ method: "POST" })
     z.object({ agentRowId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { userId } = context;
 
     const { data: agent, error } = await supabaseAdmin
       .from("agents")
