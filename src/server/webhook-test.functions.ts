@@ -14,9 +14,10 @@ export const sendWebhookTest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: agent, error } = await supabase
+    const { data: agent, error } = await supabaseAdmin
       .from("agents")
       .select("agent_id, webhook_secret, is_active")
       .eq("id", data.agentRowId)

@@ -10,8 +10,9 @@ function generateSecret(): string {
 export const listAgents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { data, error } = await supabase
+    const { userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
       .from("agents")
       .select("id, name, agent_id, webhook_secret, is_active, created_at")
       .eq("user_id", userId)
@@ -27,10 +28,17 @@ export const createAgent = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: row, error } = await supabase
+    const { error: insErr } = await supabase
       .from("agents")
-      .insert({ user_id: userId, name: data.name })
+      .insert({ user_id: userId, name: data.name });
+    if (insErr) throw new Error(insErr.message);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
+      .from("agents")
       .select("id, name, agent_id, webhook_secret, is_active, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .single();
     if (error) throw new Error(error.message);
     return { agent: row };
@@ -74,9 +82,10 @@ export const regenerateAgentSecret = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const { userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const next = generateSecret();
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("agents")
       .update({ webhook_secret: next })
       .eq("id", data.id)
